@@ -4,10 +4,12 @@ CERN 2026 data quality monitoring tools for BIC, NKFADC, and JBNU data. The C++ 
 
 ## Requirements
 
-- Linux with Bash and a C++ compiler (`g++`).
+- Linux with Bash and a C++compiler (`g++`).
 - CERN ROOT with `root-config` and the libraries used by `root-config --glibs`. The supplied environment script uses ROOT 6.32.10.
 - Python 3. The server uses the Python standard library; no pip packages are required.
 - A modern browser and access to the raw binary data. Data and compiled executables are not included in this repository.
+
+
 
 ## 1. Get the source
 
@@ -34,11 +36,13 @@ The web server sources `envset.sh` automatically when it starts.
 
 The shared dataset is available at the path configured by `envset.sh`. Readers expect these names, with a five-digit run number:
 
-| Reader | Filename pattern | Example for run 790 |
-| --- | --- | --- |
-| BIC | `Run_<run>_BIC_<MID>.dat` | `Run_00790_BIC_41.dat` |
-| NKFADC | `Run_<run>_FADC_<MID>.dat` | `Run_00790_FADC_1.dat` |
-| JBNU | `Run_<run>_JBNU_<MID>.dat` | `Run_00790_JBNU_21.dat` |
+
+| Reader | Filename pattern           | Example for run 790     |
+| ------ | -------------------------- | ----------------------- |
+| BIC    | `Run_<run>_BIC_<MID>.dat`  | `Run_00790_BIC_41.dat`  |
+| NKFADC | `Run_<run>_FADC_<MID>.dat` | `Run_00790_FADC_1.dat`  |
+| JBNU   | `Run_<run>_JBNU_<MID>.dat` | `Run_00790_JBNU_21.dat` |
+
 
 Channel names and module assignments are defined in `mapping/mapping_CERN2026.h`. Each analysis needs the input files for the selected channels or detectors.
 
@@ -57,36 +61,10 @@ Compile the program you want to use. Run each command separately:
 ./compile.sh draw_peakADC
 ```
 
-For another program, replace the name:
-
-```bash
-./compile.sh draw_avg
-```
-
-```bash
-./compile.sh draw_heatmap
-```
-
-```bash
-./compile.sh DWC
-```
-
-```bash
-./compile.sh hodoscope
-```
-
-Names can be supplied with or without the `.C` extension. Each command creates the corresponding executable in `analysis/`, such as `draw_peakADC`. Recompile the program after changing its source, shared headers, or the mapping.
-
 Run the script without arguments to display the available program names:
 
 ```bash
 ./compile.sh
-```
-
-This prints usage and exits with status 1. Return to the repository root before starting the web server:
-
-```bash
-cd ..
 ```
 
 ## 4. Start the web interface
@@ -94,10 +72,11 @@ cd ..
 For first use, source the environment script and compile the programs you want to use, one at a time, as described above. Then start the server:
 
 ```bash
+cd ../
 python3 web/serve_rootfiles.py --host 127.0.0.1 --port 8000
 ```
 
-Open **http://127.0.0.1:8000/** in your browser. Keep the terminal running; press **Ctrl+C** to stop the server.
+Open **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)** in your browser. Keep the terminal running; press **Ctrl+C** to stop the server.
 
 The server loads its ROOT environment automatically from `web/envset.sh`. Startup messages show the ROOT installation, input data directory, output directory, and DWC calibration status.
 
@@ -115,7 +94,7 @@ For a remote host accessed through SSH, you can keep the server on `127.0.0.1` a
 ssh -L 8000:127.0.0.1:8000 <user>@<server>
 ```
 
-Then open **http://127.0.0.1:8000/** on your own computer.
+Then open **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)** on your own computer.
 
 ### Run an analysis in the browser
 
@@ -177,6 +156,8 @@ Replace the placeholders with the actual calibration runs. This creates `DWC_cal
 ./draw_AUX 790 -1 /path/to/DWC_calibration_constants.txt
 ```
 
+
+
 ## Output and repository layout
 
 ```text
@@ -195,13 +176,16 @@ Compiled executables, build artifacts, Python caches, and generated output are e
 
 ## Troubleshooting
 
-| Symptom | What to check |
-| --- | --- |
-| `root-config: command not found` or ROOT headers cannot be found | Run `source web/envset.sh` from the repository root and confirm `root-config --version` works. |
-| `g++: command not found` | Confirm `command -v g++` works in your server session. |
-| ROOT shared libraries cannot be loaded | Source `web/envset.sh` in the terminal; for browser commands, restart the server to reload the shared environment. |
-| An analysis executable is missing | From `analysis/`, run `./compile.sh <name>` for the missing program. |
-| `[DAQ] cannot open ...` | Source `web/envset.sh` and check that the requested run and MID exist in the shared dataset and are readable. |
-| No output files appear in the browser | Run an analysis, inspect its command output, and check that `DQM_OUTPUT_PATH` is unset or points to the repository's `output/`. |
-| `Address already in use` | Stop the previous server or choose another port with `--port`. |
-| DWC positions are uncalibrated | Generate or provide `DWC_calibration_constants.txt` in `analysis/`, or pass a constants file explicitly. |
+
+| Symptom                                                          | What to check                                                                                                                   |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `root-config: command not found` or ROOT headers cannot be found | Run `source web/envset.sh` from the repository root and confirm `root-config --version` works.                                  |
+| `g++: command not found`                                         | Confirm `command -v g++` works in your server session.                                                                          |
+| ROOT shared libraries cannot be loaded                           | Source `web/envset.sh` in the terminal; for browser commands, restart the server to reload the shared environment.              |
+| An analysis executable is missing                                | From `analysis/`, run `./compile.sh <name>` for the missing program.                                                            |
+| `[DAQ] cannot open ...`                                          | Source `web/envset.sh` and check that the requested run and MID exist in the shared dataset and are readable.                   |
+| No output files appear in the browser                            | Run an analysis, inspect its command output, and check that `DQM_OUTPUT_PATH` is unset or points to the repository's `output/`. |
+| `Address already in use`                                         | Stop the previous server or choose another port with `--port`.                                                                  |
+| DWC positions are uncalibrated                                   | Generate or provide `DWC_calibration_constants.txt` in `analysis/`, or pass a constants file explicitly.                        |
+
+
