@@ -1,0 +1,4138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>BIC Test Beam DQM</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: var(--sidebar-width, 550px);
+      flex-shrink: 0;
+      box-sizing: border-box;
+      background: #f4f4f4;
+      border-right: 1px solid #ccc;
+      overflow-y: auto;
+      padding: 10px;
+      transition: margin-left 0.3s ease, opacity 0.3s ease;
+    }
+    
+    #sidebar.hidden {
+      margin-left: calc(-1 * var(--sidebar-width, 550px));
+      opacity: 0;
+    }
+    
+    /* drag handle between sidebar and main panel */
+    #sidebarResizer {
+      width: 6px;
+      flex-shrink: 0;
+      cursor: col-resize;
+      background: #e0e0e0;
+      transition: background 0.2s ease;
+    }
+    #sidebarResizer:hover, #sidebarResizer.dragging {
+      background: #4285f4;
+    }
+    #sidebar.hidden + #sidebarResizer {
+      display: none;
+    }
+    body.resizing-sidebar {
+      cursor: col-resize;
+      user-select: none;
+    }
+    body.resizing-sidebar #sidebar {
+      transition: none;
+    }
+    /* keep JSROOT / iframes from swallowing mouse events while dragging */
+    body.resizing-sidebar #main {
+      pointer-events: none;
+    }
+    
+    /* header button shown while a pad is enlarged inside its plot window */
+    .plot-window-unenlarge {
+      padding: 2px 8px;
+      margin-right: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      background: rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .plot-window-unenlarge:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
+    #sidebar h2 {
+      margin: 0;
+      padding: 15px;
+      background: #333;
+      color: white;
+      font-size: 18px;
+      text-align: center;
+    }
+    
+    
+
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+    #fileList {
+      list-style: none;
+      padding: 0;
+    }
+    #fileList li {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    #fileList li:hover {
+      background: #f0f0f0;
+    }
+    #fileList li.active {
+      background: #4285f4;
+      color: white;
+    }
+    
+    /* File list item styles removed - using dropdown styles instead */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+    #tabs {
+      display: flex;
+      background: #f0f0f0;
+      border-bottom: 1px solid #ccc;
+    }
+
+    
+    .tab-button {
+      padding: 10px 15px;
+      cursor: pointer;
+      border: none;
+      background: #dc3545;
+      color: white;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 4px;
+      margin-left: auto;
+      margin-right: 10px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .tab-button:hover {
+      background: #c82333;
+      transform: translateY(-1px);
+    }
+    
+    .tab-button:active {
+      transform: translateY(0);
+    }
+    
+    .tab-button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none;
+    }
+    #content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .panel.active {
+      display: flex;
+    }
+    #hierarchy {
+      height: 0px;
+      border-bottom: none;
+      overflow: hidden;
+      padding: 0;
+      background: transparent;
+      display: none;
+    }
+    
+    /* Dropdown styles for sidebar */
+    .file-item {
+      margin-bottom: 5px;
+    }
+    
+    .file-header {
+      padding: 12px 15px;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 5px;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .file-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+
+    .file-refresh-btn {
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0.8;
+      transition: all 0.2s ease;
+    }
+    
+    .file-refresh-btn:hover {
+      opacity: 1;
+      background: #218838;
+      transform: scale(1.1);
+    }
+    
+    .file-dropdown-icon {
+      transition: transform 0.2s ease;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .file-header.active .file-dropdown-icon {
+      color: white;
+    }
+    
+    .file-dropdown-icon.expanded {
+      transform: rotate(90deg);
+    }
+    
+    .file-contents {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      background: #f8f9fa;
+      border-left: 3px solid #4285f4;
+      margin-left: 10px;
+      border-radius: 0 0 4px 4px;
+    }
+    
+    .file-contents.expanded {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .content-item {
+      padding: 8px 15px;
+      cursor: pointer;
+      border-bottom: 1px solid #e9ecef;
+      transition: background 0.2s ease;
+      font-size: 13px;
+      color: #333;
+    }
+    
+    .content-item:hover {
+      background: #e3f2fd;
+    }
+    
+    .content-item:last-child {
+      border-bottom: none;
+    }
+    #drawing {
+      flex: 1;
+      position: relative;
+      background: #f0f0f0;
+      background-image: 
+        radial-gradient(circle, #ddd 1px, transparent 1px);
+      background-size: 20px 20px;
+      overflow: hidden;
+    }
+    #commandPanel {
+      padding: 10px;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+    #commandInput, .monit-form {
+      flex-shrink: 0;
+    }
+    #commandInput {
+      display: flex;
+      margin-bottom: 10px;
+      gap: 8px;
+      align-items: center;
+    }
+    #commandText {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 18px;
+      height: 32px;
+      box-sizing: border-box;
+      resize: none;
+      white-space: nowrap;
+      overflow: hidden;
+      background: #f9f9f9;
+    }
+    #commandText:focus {
+      outline: none;
+      border-color: #4285f4;
+      background: #fff;
+    }
+    #killBtn {
+      padding: 6px 12px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    #killBtn:hover:not(:disabled) {
+      background: #c82333;
+    }
+    #killBtn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    
+    .kill-all-btn {
+      padding: 6px 12px;
+      background: #fd7e14;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      gap: 5px;
+    }
+    
+    .kill-all-btn:hover {
+      background: #e66a00;
+      transform: translateY(-1px);
+    }
+    
+    .kill-all-btn:active {
+      transform: translateY(0);
+    }
+    
+    /* Modal Styles (process kill dialog) */
+    .security-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      width: 400px;
+      max-width: 90%;
+    }
+
+    .modal-content h3 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .modal-content p {
+      margin-bottom: 20px;
+      color: #555;
+    }
+
+    .modal-content input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    .modal-buttons {
+      display: flex;
+      justify-content: space-around;
+      gap: 10px;
+    }
+
+    .modal-buttons button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    .security-error {
+      color: #f44336;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    #commandOutput {
+      flex: 1;
+      background: #2d2d2d;
+      color: #f0f0f0;
+      font-family: 'Courier New', monospace;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      flex: 1 1 0;
+      min-height: 150px;
+      max-width: 100%;
+      box-sizing: border-box;
+      line-height: 1.10;
+    }
+    #status {
+      padding: 8px;
+      background: #f9f9f9;
+      border-top: 1px solid #ccc;
+      font-size: 14px;
+      color: #666;
+    }
+    .command-history {
+      color: #4CAF50;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    .command-output {
+      margin-bottom: 3px;
+    }
+    .command-error {
+      color: #f44336;
+    }
+
+    /* Plot Window styles */
+    .plot-window {
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      min-width: 300px;
+      min-height: 250px;
+      display: flex;
+      flex-direction: column;
+      z-index: 1;
+    }
+
+    .plot-window.active {
+      z-index: 100;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .plot-window-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px 8px 0 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+      user-select: none;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .plot-window-title {
+      flex: 1;
+      margin-right: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .plot-window-controls {
+      display: flex;
+      gap: 5px;
+    }
+
+    .plot-window-btn {
+      width: 18px;
+      height: 18px;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: bold;
+    }
+
+    .plot-window-close {
+      background: #ff5f56;
+      color: white;
+    }
+
+    .plot-window-close:hover {
+      background: #ff3b30;
+    }
+
+    .plot-window-body {
+      flex: 1;
+      padding: 10px;
+      overflow: auto;
+      position: relative;
+    }
+
+    .plot-window-resize-handle {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 20px;
+      height: 20px;
+      cursor: nw-resize;
+      background: linear-gradient(-45deg, transparent 0%, transparent 40%, #ccc 40%, #ccc 60%, transparent 60%);
+    }
+
+    .plot-item {
+      cursor: pointer;
+      padding: 8px;
+      margin: 2px 0;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+
+    .plot-item:hover {
+      background: #e3f2fd;
+    }
+
+    .plot-item:active {
+      background: #bbdefb;
+    }
+
+    .canvas-welcome {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #999;
+      font-size: 18px;
+      font-style: italic;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .window-count {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 15px;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    
+    /* Monit Command Builder Form Styles */
+    .monit-form {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .form-title {
+      margin: 0 0 20px 0;
+      color: #333;
+      font-size: 18px;
+      font-weight: 600;
+      border-bottom: 2px solid #4285f4;
+      padding-bottom: 8px;
+    }
+    
+    .form-row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+      align-items: end;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    
+    .form-group-wide {
+      flex: 2;
+    }
+    
+    .form-group-button {
+      align-self: stretch;
+      display: flex;
+      align-items: end;
+    }
+    
+    .form-group label {
+      font-weight: 500;
+      margin-bottom: 5px;
+      color: #555;
+      font-size: 14px;
+    }
+    
+    .form-group input[type="number"],
+    .form-group input[type="text"],
+    .form-group select {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      background: white;
+      transition: border-color 0.2s ease;
+    }
+    
+    .form-group input[type="number"]:focus,
+    .form-group input[type="text"]:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #4285f4;
+      box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+    }
+    
+    .form-group input:disabled,
+    .form-group select:disabled {
+      background: #eee;
+      color: #888;
+      cursor: not-allowed;
+    }
+    
+    .checkbox-label {
+      display: flex !important;
+      align-items: center;
+      cursor: pointer;
+      font-weight: 500 !important;
+      margin-bottom: 0 !important;
+      color: #555 !important;
+    }
+    
+    .checkbox-label input[type="checkbox"] {
+      margin-right: 8px;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    
+    .execute-monit-btn {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #28a745, #20c997);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+      width: 100%;
+      height: 45px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .execute-monit-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: left 0.6s ease;
+    }
+    
+    .execute-monit-btn:hover::before {
+      left: 100%;
+    }
+    
+    .execute-monit-btn:hover {
+      background: linear-gradient(135deg, #218838, #1eb584);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(40, 167, 69, 0.5);
+      letter-spacing: 0.8px;
+    }
+    
+    .execute-monit-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+    }
+    
+    .execute-monit-btn:focus {
+      outline: none;
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4), 0 0 0 3px rgba(40, 167, 69, 0.2);
+    }
+    
+    .command-preview {
+      margin-top: 15px;
+      padding: 12px;
+      background: #2d2d2d;
+      border-radius: 4px;
+      border: 1px solid #444;
+    }
+    
+    .command-preview label {
+      display: block;
+      color: #ccc;
+      font-size: 12px;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    
+    .preview-text {
+      font-family: 'Courier New', monospace;
+      color: #4CAF50;
+      font-size: 13px;
+      word-break: break-word;
+      line-height: 1.4;
+    }
+    
+    
+    #tabBar {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      position: relative;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .tabs-wrapper {
+      display: flex;
+      flex: 1;
+      gap: 8px;
+    }
+    
+    .tab {
+      padding: 8px 16px;
+      cursor: pointer;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      color: #666;
+      font-weight: 500;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .tab:hover {
+      background: #f8f9fa;
+      border-color: #d0d7de;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    
+    .tab.active {
+      background: linear-gradient(135deg, #4285f4 0%, #1976d2 100%);
+      border-color: #1976d2;
+      color: white;
+      font-weight: 600;
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(66, 133, 244, 0.3);
+    }
+    
+    .tab.active:hover {
+      background: linear-gradient(135deg, #3367d6 0%, #1565c0 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+    }
+    
+    #systemInfo {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      margin-right: 15px;
+      font-size: 11px;
+      color: #666;
+      gap: 1px;
+      min-width: 200px;
+    }
+    
+    #currentTime {
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #333;
+    }
+    
+    #browserMemory {
+      font-weight: 400;
+      opacity: 0.8;
+      color: #555;
+    }
+    
+    #serverInfo {
+      font-weight: 400;
+      opacity: 0.8;
+      color: #555;
+    }
+    
+    /* Sidebar Toggle Button Styles */
+    #sidebarToggle {
+      margin-left: 15px;
+      margin-right: 15px;
+    }
+    
+    #toggleSidebarBtn {
+      padding: 8px 12px;
+      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    #toggleSidebarBtn:hover {
+      background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 123, 255, 0.4);
+    }
+    
+    #toggleSidebarBtn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+    }
+
+    
+
+    .sidebar-controls {
+      padding: 15px;
+      border-bottom: 1px solid #e0e0e0;
+      background: #f8f9fa;
+    }
+    
+    .sidebar-button {
+      width: 100%;
+      padding: 10px 15px;
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    
+    .sidebar-button:hover {
+      background: linear-gradient(135deg, #ff5252 0%, #d63031 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .sidebar-button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .file-header:hover {
+      background: #f8f9fa;
+      border-color: #d0d7de;
+    }
+    
+    .file-header.active {
+      background: #4285f4;
+      color: white;
+      border-color: #4285f4;
+    }
+    
+    .file-header.active .file-refresh-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+    
+    .file-header.active .file-refresh-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .file-main-info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;  /* let the label shrink instead of pushing the buttons out */
+      gap: 4px;
+    }
+
+    .file-name {
+      font-weight: 500;
+      color: #333;
+    }
+
+    /* what a file shows : Run790 | IntADC | SFIL4_xm_y3 */
+    .file-label {
+      display: flex;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .file-pill {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+      color: white;
+      background: #6c757d;
+    }
+    .file-meta-row, .file-meta-row * {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .file-run {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+      align-self: center;
+      margin-right: 2px;
+    }
+    .file-pill.target {
+      flex-shrink: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: #e8f0fe;
+      color: #1a3d7c;
+    }
+    /* three groups : channel plots / AUX / hodoscope + DWC */
+    .file-pill.type.calo { background: #1e88e5; }
+    .file-pill.type.det { background: #43a047; }
+    .file-pill.type.aux { background: #fb8c00; }
+    .file-pill.method { background: #8e24aa; }
+    .form-group input.invalid {
+      border-color: #dc3545;
+      box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2);
+    }
+
+    .file-metadata {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: #666;
+    }
+    
+    .file-size {
+      font-weight: 500;
+    }
+    
+    .file-time {
+      color: #888;
+    }
+    
+    .file-item.new-file {
+      animation: newFileHighlight 4s ease-out;
+    }
+    
+    @keyframes newFileHighlight {
+      0% {
+        background: #d4edda;
+        border-color: #28a745;
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+      }
+      15% {
+        transform: scale(1);
+      }
+      30% {
+        background: #d4edda;
+        border-color: #28a745;
+      }
+      100% {
+        background: transparent;
+        border-color: #e0e0e0;
+        transform: scale(1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+    }
+    
+    .file-header.active .file-name {
+      color: white;
+    }
+    
+    .file-header.active .file-metadata {
+      color: rgba(255, 255, 255, 0.8);
+    }
+    
+    /* DQM Manual Panel Styles */
+    .dqm-manual-content {
+      padding: 15px;
+      width: 100%;
+      height: calc(100vh - 60px);
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    
+    .emergency-contact {
+      background: #fff5f5;
+      border: 2px solid #e53e3e;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(229, 62, 62, 0.15);
+    }
+    
+    .emergency-contact h3 {
+      color: #e53e3e;
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 10px 0;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .emergency-contact p {
+      color: #333;
+      font-size: 16px;
+      font-weight: 600;
+      margin: 10px 0 15px 0;
+    }
+    
+    .contact-numbers {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      flex-wrap: wrap;
+    }
+    
+    .contact-numbers span {
+      background: #e53e3e;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 16px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      box-shadow: 0 2px 8px rgba(229, 62, 62, 0.3);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .contact-numbers span:hover {
+      background: #c53030;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(229, 62, 62, 0.4);
+    }
+    
+      width: calc(100% - 2px);
+      height: calc(100vh - 420px);
+      max-height: calc(100vh - 420px);
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #f9f9f9;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    
+    <!-- Close All Windows Button -->
+    <div class="sidebar-controls">
+      <button id="closeAllWindowsBtn" class="sidebar-button" onclick="closeAllPlotWindows()" title="Close all plot windows">
+        🗑️ Close All Windows
+      </button>
+    </div>
+    
+    <ul id="fileList">
+      <!-- Files will be populated here -->
+    </ul>
+  </div>
+  
+  <div id="sidebarResizer" title="Drag to resize"></div>
+  
+  <div id="main">
+    <div id="tabBar">
+      <!-- Sidebar Toggle Button -->
+      <div id="sidebarToggle">
+        <button id="toggleSidebarBtn" onclick="toggleSidebar()" title="Toggle sidebar">
+          📂 ◀
+        </button>
+      </div>
+      
+      <div class="tabs-wrapper">
+        <div class="tab active" data-panel="rootPanel">DQM Viewer</div>
+        <div class="tab" data-panel="commandPanel">Command Interface</div>
+      </div>
+      
+      <!-- System Info Panel -->
+      <div id="systemInfo">
+        <div id="currentTime"></div>
+        <div id="browserMemory"></div>
+        <div id="serverInfo"></div>
+      </div>
+    </div>
+    
+    <!-- Process Kill Confirmation Modal -->
+    <div id="processKillModal" class="security-modal">
+      <div class="modal-content" style="width: 600px; max-width: 95%;">
+        <h3>⚠️ Kill DQM Processes</h3>
+        <p>The following DQM processes will be terminated:</p>
+        <div id="processList" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px; margin: 15px 0; font-family: 'Courier New', monospace; font-size: 12px;">
+          <div style="text-align: center; color: #666; padding: 20px;">Loading processes...</div>
+        </div>
+        <div class="modal-buttons">
+          <button id="confirmKillBtn" style="background-color: #dc3545;">Kill All</button>
+          <button id="cancelKillBtn" style="background-color: #6c757d;">Cancel</button>
+        </div>
+        <div id="killError" class="security-error"></div>
+      </div>
+    </div>
+    
+    <div id="content">
+      <!-- ROOT Browser Panel -->
+      <div id="rootPanel" class="panel active">
+        <div id="drawing">
+          <div class="canvas-welcome">
+            Click on a plot item from the sidebar to open it in this canvas<br>
+            Multiple windows can be opened simultaneously
+          </div>
+          <div class="window-count" id="windowCount" style="display: none;">
+            Windows: 0
+          </div>
+        </div>
+      </div>
+      
+      <!-- Command Interface Panel -->
+      <div id="commandPanel" class="panel">
+        <div id="commandInput">
+          <textarea id="commandText" placeholder="Enter command and press Enter (rm, cd not allowed)" rows="1"></textarea>
+          <button id="killBtn" disabled>Kill Process</button>
+          <button id="killAllMonitBtn" class="kill-all-btn">Kill All DQM</button>
+        </div>
+        <div id="commandOutput">Welcome to DQM Command Interface
+Commands run in CERN_DQM/analysis (same as typing them there in a terminal).
+Most commands are allowed except: rm, cd (for security)
+Type a command and press Enter to execute.
+
+</div>
+        
+        <!-- Monit Command Builder Form -->
+        <div id="monitForm" class="monit-form">
+          <h3 class="form-title">🚀 DQM Command Builder</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="runNumber">Run #:</label>
+              <input type="number" id="runNumber" placeholder="99999" min="1" max="99999">
+            </div>
+
+            <div class="form-group">
+              <label for="typeSelect">Type:</label>
+              <select id="typeSelect">
+                <option value="single">single</option>
+                <option value="module" selected>module</option>
+                <option value="heatmap">heatmap</option>
+                <option value="full">full</option>
+                <option value="hodoscope">hodoscope</option>
+                <option value="DWC">DWC</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="methodSelect">Method:</label>
+              <select id="methodSelect">
+                <option value="IntADC" selected>IntADC</option>
+                <option value="PeakADC">PeakADC</option>
+                <option value="Avg">Avg</option>
+                <option value="Overlay">Overlay</option>
+                <option value="Waveform">Waveform</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="moduleInput" id="moduleLabel">Module:</label>
+              <input type="text" id="moduleInput">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="maxEventInput" id="maxEventLabel">Max Event:</label>
+              <input type="number" id="maxEventInput" placeholder="Optional: events to read (default: all)" min="1">
+            </div>
+
+            <div class="form-group">
+              <label for="skipEventInput">First Event (Waveform):</label>
+              <input type="number" id="skipEventInput" placeholder="Optional: event to draw (default: 0)" min="0">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="auxCheck">
+                <span class="checkmark"></span>
+                AUX (DWC, CC)
+              </label>
+            </div>
+
+            <div class="form-group form-group-button">
+              <button id="executeMonitBtn" class="execute-monit-btn">
+                ▶️ Execute
+              </button>
+            </div>
+          </div>
+
+          <div class="command-preview">
+            <label>Generated Command:</label>
+            <div id="commandPreview" class="preview-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="status">Ready</div>
+  </div>
+
+  <!-- Load JSROOT locally -->
+<script src="jsroot.js"></script>
+
+<!-- jsgif 라이브러리 로드 (로컬) -->
+<script src="gif.js"></script>
+<script>
+  // jsgif 로드 확인
+  let jsgifLoaded = false;
+  
+  function checkJsgifLoaded() {
+    if (typeof parseGIF !== 'undefined') {
+      jsgifLoaded = true;
+      console.log('jsgif 라이브러리 로드 성공');
+      return true;
+    }
+    return false;
+  }
+  
+  // 페이지 로드 후 라이브러리 확인
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+      if (checkJsgifLoaded()) {
+        console.log('jsgif 사용 준비 완료');
+      } else {
+        console.error('jsgif 로드 실패');
+      }
+    }, 100);
+  });
+</script>
+  <!-- GIF parser implementation -->
+  <script>
+    // Simple GIF parser for frame extraction
+    class GifParser {
+      constructor(buffer) {
+        this.buffer = buffer;
+        this.view = new DataView(buffer);
+        this.pos = 0;
+        this.frames = [];
+        this.globalColorTable = null;
+        this.width = 0;
+        this.height = 0;
+        this.backgroundColorIndex = 0;
+      }
+      
+      readByte() {
+        return this.view.getUint8(this.pos++);
+      }
+      
+      readShort() {
+        const value = this.view.getUint16(this.pos, true); // little endian
+        this.pos += 2;
+        return value;
+      }
+      
+      readBytes(length) {
+        const bytes = new Uint8Array(this.buffer, this.pos, length);
+        this.pos += length;
+        return bytes;
+      }
+      
+      skipBytes(length) {
+        this.pos += length;
+      }
+      
+      parse() {
+        // Check GIF signature
+        const signature = String.fromCharCode(...this.readBytes(6));
+        if (!signature.startsWith('GIF')) {
+          throw new Error('Not a valid GIF file');
+        }
+        
+        // Read logical screen descriptor
+        this.width = this.readShort();
+        this.height = this.readShort();
+        
+        const packed = this.readByte();
+        const globalColorFlag = (packed & 0x80) !== 0;
+        const colorResolution = ((packed & 0x70) >> 4) + 1;
+        const sortFlag = (packed & 0x08) !== 0;
+        const globalColorTableSize = Math.pow(2, (packed & 0x07) + 1);
+        
+        this.backgroundColorIndex = this.readByte();
+        const pixelAspectRatio = this.readByte();
+        
+        // Read global color table if present
+        if (globalColorFlag) {
+          this.globalColorTable = this.readBytes(globalColorTableSize * 3);
+        }
+        
+        // Parse data stream
+        this.parseDataStream();
+        
+        return {
+          width: this.width,
+          height: this.height,
+          frames: this.frames
+        };
+      }
+      
+      parseDataStream() {
+        while (this.pos < this.buffer.byteLength) {
+          const separator = this.readByte();
+          
+          if (separator === 0x21) { // Extension
+            this.parseExtension();
+          } else if (separator === 0x2C) { // Image descriptor
+            this.parseImage();
+          } else if (separator === 0x3B) { // Trailer
+            break;
+          } else {
+            // Unknown separator, skip
+            break;
+          }
+        }
+      }
+      
+      parseExtension() {
+        const label = this.readByte();
+        
+        if (label === 0xF9) { // Graphic control extension
+          const blockSize = this.readByte();
+          const packed = this.readByte();
+          const delayTime = this.readShort() * 10; // Convert to milliseconds
+          const transparentColorIndex = this.readByte();
+          this.readByte(); // block terminator
+          
+          // Store for next frame
+          this.nextFrameDelay = delayTime || 100;
+          this.nextFrameDisposal = (packed & 0x1C) >> 2;
+        } else {
+          // Skip other extensions
+          this.skipDataSubBlocks();
+        }
+      }
+      
+      parseImage() {
+        const left = this.readShort();
+        const top = this.readShort();
+        const width = this.readShort();
+        const height = this.readShort();
+        
+        const packed = this.readByte();
+        const localColorFlag = (packed & 0x80) !== 0;
+        const interlaceFlag = (packed & 0x40) !== 0;
+        const sortFlag = (packed & 0x20) !== 0;
+        const localColorTableSize = localColorFlag ? Math.pow(2, (packed & 0x07) + 1) : 0;
+        
+        let localColorTable = null;
+        if (localColorFlag) {
+          localColorTable = this.readBytes(localColorTableSize * 3);
+        }
+        
+        // Skip LZW minimum code size
+        this.readByte();
+        
+        // Skip image data
+        this.skipDataSubBlocks();
+        
+        // Create frame info
+        this.frames.push({
+          left: left,
+          top: top,
+          width: width,
+          height: height,
+          delay: this.nextFrameDelay || 100,
+          disposal: this.nextFrameDisposal || 0,
+          localColorTable: localColorTable
+        });
+      }
+      
+      skipDataSubBlocks() {
+        let blockSize;
+        do {
+          blockSize = this.readByte();
+          if (blockSize > 0) {
+            this.skipBytes(blockSize);
+          }
+        } while (blockSize > 0);
+      }
+    }
+  </script>
+  <script>
+    // Global variables
+    let jsrootReady = false;
+    let currentFile = null;
+    let windowCounter = 0;
+    let activeWindow = null;
+    let windows = new Map();
+    let currentEventSource = null; // 현재 실행 중인 EventSource 추적
+    let lastOutputElement = null; // 마지막 출력 요소 추적
+    let currentFileList = []; // 현재 파일 목록 추적
+    let fileRefreshInterval = null; // 파일 새로고침 인터벌
+    
+    function switchToPanel(panelId) {
+      // Remove active class from all tabs and panels
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      
+      // Add active class to selected tab and panel
+      document.querySelector(`[data-panel="${panelId}"]`).classList.add('active');
+      document.getElementById(panelId).classList.add('active');
+    }
+    
+    // Window management functionality
+    function createPlotWindow(objectName, rootFile) {
+      windowCounter++;
+      const windowId = `window_${windowCounter}`;
+      
+      // Calculate position with cycling every 10 windows
+      const maxWindowsPerCycle = 10;
+      const windowIndexInCycle = (windowCounter - 1) % maxWindowsPerCycle;
+      const cycleNumber = Math.floor((windowCounter - 1) / maxWindowsPerCycle);
+      
+      // Base position for each cycle (slightly offset to avoid overlap)
+      const baseLeft = 50 + cycleNumber * 20;
+      const baseTop = 50 + cycleNumber * 20;
+      
+      // Position within the cycle
+      const left = baseLeft + windowIndexInCycle * 30;
+      const top = baseTop + windowIndexInCycle * 30;
+      
+      // Create window element with larger initial size
+      const windowElement = document.createElement('div');
+      windowElement.className = 'plot-window';
+      windowElement.id = windowId;
+      windowElement.style.left = `${left}px`;
+      windowElement.style.top = `${top}px`;
+      windowElement.style.width = '600px';  // Increased from 400px
+      windowElement.style.height = '500px'; // Increased from 350px
+      
+      windowElement.innerHTML = `
+        <div class="plot-window-header">
+          <div class="plot-window-title">${objectName}</div>
+          <div class="plot-window-controls">
+            <button class="plot-window-btn plot-window-close" onclick="closePlotWindow('${windowId}')">&times;</button>
+          </div>
+        </div>
+        <div class="plot-window-body">
+          <div style="text-align: center; padding: 20px; color: #666;">Loading plot...</div>
+        </div>
+        <div class="plot-window-resize-handle"></div>
+      `;
+      
+      // Add to canvas
+      const canvas = document.getElementById('drawing');
+      canvas.appendChild(windowElement);
+      
+      // Make window active
+      makeWindowActive(windowId);
+      
+      // Add drag functionality
+      makeWindowDraggable(windowElement);
+      
+      // Add resize functionality with auto-refresh
+      makeWindowResizable(windowElement, windowId);
+      
+      // Add click to activate
+      windowElement.addEventListener('mousedown', () => makeWindowActive(windowId));
+      
+      // Store window reference
+      windows.set(windowId, {
+        element: windowElement,
+        objectName: objectName,
+        rootFile: rootFile,
+        filename: currentFileName
+      });
+      
+      // Load and draw the plot
+      loadPlotInWindow(windowId, objectName, rootFile);
+      
+      // Update window count
+      updateWindowCount();
+      
+      return windowId;
+    }
+
+    // GIF 파일을 표시하는 함수
+    function createGifWindow(filename) {
+      windowCounter++;
+      const windowId = `gif_window_${windowCounter}`;
+      
+      // Calculate position with cycling every 10 windows
+      const maxWindowsPerCycle = 10;
+      const windowIndexInCycle = (windowCounter - 1) % maxWindowsPerCycle;
+      const cycleNumber = Math.floor((windowCounter - 1) / maxWindowsPerCycle);
+      
+      // Base position for each cycle (slightly offset to avoid overlap)
+      const baseLeft = 50 + cycleNumber * 20;
+      const baseTop = 50 + cycleNumber * 20;
+      
+      // Position within the cycle
+      const left = baseLeft + windowIndexInCycle * 30;
+      const top = baseTop + windowIndexInCycle * 30;
+      
+      // Create window element for GIF
+      const windowElement = document.createElement('div');
+      windowElement.className = 'plot-window';
+      windowElement.id = windowId;
+      windowElement.style.left = `${left}px`;
+      windowElement.style.top = `${top}px`;
+      windowElement.style.width = '700px';  // GIF는 좀 더 크게
+      windowElement.style.height = '600px';
+      
+      windowElement.innerHTML = `
+        <div class="plot-window-header">
+          <div class="plot-window-title">🎬 ${filename}</div>
+          <div class="plot-window-controls">
+            <button class="plot-window-btn plot-window-close" onclick="closePlotWindow('${windowId}')">&times;</button>
+          </div>
+        </div>
+        <div class="plot-window-body">
+          <div style="text-align: center; padding: 20px; color: #666;">Loading GIF...</div>
+        </div>
+        <div class="plot-window-resize-handle"></div>
+      `;
+      
+      // Add to canvas
+      const canvas = document.getElementById('drawing');
+      canvas.appendChild(windowElement);
+      
+      // Make window active
+      makeWindowActive(windowId);
+      
+      // Add drag functionality
+      makeWindowDraggable(windowElement);
+      
+      // Add resize functionality
+      makeWindowResizable(windowElement, windowId);
+      
+      // Add click to activate
+      windowElement.addEventListener('mousedown', () => makeWindowActive(windowId));
+      
+      // Store window reference
+      windows.set(windowId, {
+        element: windowElement,
+        objectName: filename,
+        rootFile: null,
+        filename: filename,
+        isGif: true,
+        gifData: null
+      });
+      
+      // Load and display the GIF
+      loadGifInWindow(windowId, filename);
+      
+      // Update window count
+      updateWindowCount();
+      
+      return windowId;
+    }
+    
+    function closePlotWindow(windowId) {
+      const windowData = windows.get(windowId);
+      if (windowData) {
+        // Clean up ResizeObserver if it exists
+        if (windowData.element.resizeObserver) {
+          windowData.element.resizeObserver.disconnect();
+        }
+        
+        windowData.element.remove();
+        windows.delete(windowId);
+        
+        // If this was the active window, clear active state
+        if (activeWindow === windowId) {
+          activeWindow = null;
+          // Make another window active if available
+          if (windows.size > 0) {
+            const firstWindowId = windows.keys().next().value;
+            makeWindowActive(firstWindowId);
+          }
+        }
+        
+        updateWindowCount();
+      }
+    }
+    
+    function makeWindowActive(windowId) {
+      // Remove active class from all windows
+      document.querySelectorAll('.plot-window').forEach(w => w.classList.remove('active'));
+      
+      // Add active class to selected window
+      const windowElement = document.getElementById(windowId);
+      if (windowElement) {
+        windowElement.classList.add('active');
+        activeWindow = windowId;
+      }
+    }
+    
+    function loadPlotInWindow(windowId, objectName, rootFile, forceReload = false) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      
+      // Show loading state
+      body.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Loading plot...</div>';
+      
+      // If forceReload is true, try to reload the file first
+      if (forceReload && windowData.filename) {
+        const timestamp = Date.now();
+        const fileUrl = `output/${windowData.filename}?t=${timestamp}`;
+        
+        JSROOT.openFile(fileUrl).then(newFile => {
+          if (newFile) {
+            windowData.rootFile = newFile;
+            windows.set(windowId, windowData);
+            loadPlotFromFile(windowId, objectName, newFile, body);
+          } else {
+            loadPlotFromFile(windowId, objectName, rootFile, body);
+          }
+        }).catch(() => {
+          loadPlotFromFile(windowId, objectName, rootFile, body);
+        });
+      } else {
+        loadPlotFromFile(windowId, objectName, rootFile, body);
+      }
+    }
+    
+    function loadPlotFromFile(windowId, objectName, rootFile, body) {
+      const windowData = windows.get(windowId);
+      
+      rootFile.readObject(objectName).then(obj => {
+        if (obj) {
+          body.innerHTML = '';
+          
+          // Try different drawing options in order of preference
+          const drawOptions = [
+            'hist',      // Default histogram
+            'colz',      // Color plot
+            'lego',      // 3D lego plot
+            'surf',      // Surface plot
+            'box',       // Box plot
+            '',          // Default JSROOT option
+            'same'       // Same as previous
+          ];
+          
+          let optionIndex = 0;
+          
+          function tryDrawWithOption() {
+            if (optionIndex >= drawOptions.length) {
+              // All options failed, show detailed error with refresh option
+              body.innerHTML = `
+                <div style="color: red; text-align: center; padding: 20px;">
+                  <h4>❌ Failed to draw object</h4>
+                  <p><strong>Object:</strong> ${objectName}</p>
+                  <p><strong>Type:</strong> ${obj._typename || 'Unknown'}</p>
+                  <p><strong>Error:</strong> All drawing options failed</p>
+                  <p style="color: #666; font-size: 12px; margin-top: 10px;">
+                    This might be caused by an updated ROOT file. Try refreshing the plot.
+                  </p>
+                  <button onclick="refreshPlotWindow('${windowId}')" style="margin: 5px; padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                    🔄 Refresh Plot
+                  </button>
+                  <details style="margin-top: 10px; text-align: left;">
+                    <summary style="cursor: pointer; font-weight: bold;">Object Details</summary>
+                    <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-top: 5px; font-size: 11px; overflow: auto;">${JSON.stringify(obj, null, 2).substring(0, 1000)}${JSON.stringify(obj, null, 2).length > 1000 ? '...' : ''}</pre>
+                  </details>
+                  <button onclick="tryAlternativeDrawing('${windowId}', '${objectName}')" style="margin-top: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                    🔄 Try Alternative Methods
+                  </button>
+                </div>
+              `;
+              return;
+            }
+            
+            const option = drawOptions[optionIndex];
+            
+            JSROOT.draw(body, obj, option).then(() => {
+              // Success! Update window title with drawing option info and add refresh button
+              const titleElement = windowData.element.querySelector('.plot-window-title');
+              if (titleElement) {
+                titleElement.innerHTML = `
+                  <span>${objectName}${option ? ` (${option})` : ''}</span>
+                  <button onclick="refreshPlotWindow('${windowId}')" style="margin-left: 10px; padding: 2px 6px; font-size: 10px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;" title="Refresh plot">
+                    🔄
+                  </button>
+                `;
+              }
+            }).catch(err => {
+              // This option failed, try next one
+              optionIndex++;
+              setTimeout(tryDrawWithOption, 100); // Small delay before trying next option
+            });
+          }
+          
+          // Start trying draw options
+          tryDrawWithOption();
+          
+        } else {
+          body.innerHTML = `
+            <div style="color: orange; text-align: center; padding: 20px;">
+              <h4>⚠️ Object not found</h4>
+              <p><strong>Object:</strong> ${objectName}</p>
+              <p>The object could not be loaded from the ROOT file.</p>
+              <button onclick="reloadRootObject('${windowId}', '${objectName}')" style="margin-top: 10px; padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                🔄 Retry Loading
+              </button>
+            </div>
+          `;
+        }
+      }).catch(err => {
+        // Enhanced error display with troubleshooting options
+        body.innerHTML = `
+          <div style="color: red; text-align: center; padding: 20px;">
+            <h4>❌ Error loading object</h4>
+            <p><strong>Object:</strong> ${objectName}</p>
+            <p><strong>Error:</strong> ${err.message || err}</p>
+            <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; color: #856404;">
+              <h5 style="margin: 0 0 10px 0;">💡 Troubleshooting Tips:</h5>
+              <ul style="text-align: left; margin: 0; padding-left: 20px;">
+                <li>The ROOT file might still be writing</li>
+                <li>The object might be corrupted</li>
+                <li>JSROOT might not support this object type</li>
+                <li>Try refreshing the file list</li>
+              </ul>
+            </div>
+            <div style="margin-top: 15px;">
+              <button onclick="reloadRootObject('${windowId}', '${objectName}')" style="margin: 5px; padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                🔄 Retry Loading
+              </button>
+              <button onclick="inspectRootObject('${windowId}', '${objectName}')" style="margin: 5px; padding: 5px 10px; background: #17a2b8; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                🔍 Inspect Object
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // GIF 파일을 로드하는 함수
+    function loadGifInWindow(windowId, filename) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      
+      // GIF 파일 URL 생성
+      const gifUrl = `output/${filename}`;
+      
+      // GIF 프레임 제어를 위한 컨테이너 생성
+      body.innerHTML = `
+        <div style="display: flex; flex-direction: column; height: 100%; width: 100%; padding: 10px; box-sizing: border-box;">
+          <div style="flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative;">
+            <canvas id="gif-canvas-${windowId}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></canvas>
+            <div id="gif-loading-${windowId}" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; font-size: 14px;">Loading GIF frames...</div>
+          </div>
+          <div style="display: flex; justify-content: center; align-items: center; gap: 20px; padding: 10px; background: #f8f9fa; border-radius: 0 0 8px 8px; margin-top: 10px;">
+            <button id="prev-frame-${windowId}" onclick="changeGifFrame('${windowId}', -1)" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>◀</button>
+            <span id="frame-info-${windowId}" style="font-size: 12px; color: #666; min-width: 80px; text-align: center;">Frame: 0/0</span>
+            <button id="next-frame-${windowId}" onclick="changeGifFrame('${windowId}', 1)" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold;" disabled>▶</button>
+            <button id="play-pause-${windowId}" onclick="toggleGifPlayback('${windowId}')" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">▶ Play</button>
+          </div>
+        </div>
+      `;
+      
+      // GIF 프레임 추출 및 로드
+      loadGifFrames(windowId, gifUrl);
+    }
+
+    // GIF 프레임을 로드하는 함수
+    function loadGifFrames(windowId, gifUrl) {
+      const canvas = document.getElementById(`gif-canvas-${windowId}`);
+      const loadingDiv = document.getElementById(`gif-loading-${windowId}`);
+      const prevBtn = document.getElementById(`prev-frame-${windowId}`);
+      const nextBtn = document.getElementById(`next-frame-${windowId}`);
+      const frameInfo = document.getElementById(`frame-info-${windowId}`);
+      const playPauseBtn = document.getElementById(`play-pause-${windowId}`);
+      
+      if (!canvas || !loadingDiv) return;
+      
+      console.log('jsgif로 실제 GIF 프레임 추출 시작');
+      
+      // jsgif가 로드되었는지 확인
+      if (jsgifLoaded || checkJsgifLoaded()) {
+        // jsgif를 사용하여 실제 프레임 추출
+        extractGifFramesWithJsgif(gifUrl, windowId, canvas, loadingDiv, prevBtn, nextBtn, frameInfo);
+      } else {
+        console.error('jsgif 라이브러리가 로드되지 않음');
+        loadingDiv.innerHTML = '❌ jsgif 라이브러리 로드 실패';
+        loadingDiv.style.color = 'red';
+      }
+    }
+
+    // jsgif를 사용한 실제 GIF 프레임 추출
+    function extractGifFramesWithJsgif(gifUrl, windowId, canvas, loadingDiv, prevBtn, nextBtn, frameInfo) {
+      console.log('jsgif로 실제 프레임 추출 중...');
+      
+      // parseGIF 함수 존재 여부 확인
+      if (typeof parseGIF !== 'function') {
+        console.error('parseGIF 함수가 정의되지 않음');
+        loadingDiv.innerHTML = '❌ jsgif parseGIF 함수가 정의되지 않음';
+        loadingDiv.style.color = 'red';
+        return;
+      }
+      
+      console.log('GIF 파일 다운로드 중...');
+      
+      // GIF 파일을 ArrayBuffer로 다운로드
+      fetch(gifUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.arrayBuffer();
+        })
+        .then(arrayBuffer => {
+          console.log(`GIF 파일 다운로드 완료: ${arrayBuffer.byteLength} bytes`);
+          
+          // ArrayBuffer를 문자열로 변환 (jsgif Stream 요구사항)
+          const uint8Array = new Uint8Array(arrayBuffer);
+          let binaryString = '';
+          for (let i = 0; i < uint8Array.length; i++) {
+            binaryString += String.fromCharCode(uint8Array[i]);
+          }
+          
+          console.log('jsgif Stream 생성 및 parseGIF 호출...');
+          
+          // jsgif Stream 객체 생성
+          const stream = new Stream(binaryString);
+          console.log('Stream 객체 생성됨, 데이터 길이:', stream.len);
+          
+          // jsgif는 비동기 콜백 방식으로 작동
+          const gifData = {
+            header: null,
+            gct: null,
+            frames: [],
+            images: []
+          };
+          
+          const handler = {
+            hdr: function(header) {
+              console.log('GIF 헤더:', header);
+              gifData.header = header;
+              // 글로벌 색상 테이블 정보도 헤더에 포함
+              if (header.gct) {
+                console.log('글로벌 색상 테이블 발견:', header.gct.length, '개 색상');
+              }
+            },
+            gce: function(gce) {
+              console.log('그래픽 제어 확장:', gce);
+              // 다음 이미지를 위한 제어 정보 저장
+              gifData.currentGce = gce;
+            },
+            img: function(image) {
+              console.log('이미지 데이터:', image);
+              if (image.lct) {
+                console.log('로컬 색상 테이블 발견:', image.lct.length, '개 색상');
+              }
+              // 이전 gce와 함께 프레임 생성
+              const frame = {
+                image: image,
+                gce: gifData.currentGce || { delay: 10 }
+              };
+              gifData.frames.push(frame);
+              gifData.images.push(image);
+              console.log(`프레임 ${gifData.frames.length} 추가됨`);
+            },
+            eof: function() {
+              console.log('GIF 파싱 완료');
+              console.log(`총 ${gifData.frames.length}개 프레임 추출됨`);
+              
+              if (gifData.frames.length === 0) {
+                loadingDiv.innerHTML = '❌ GIF에서 프레임을 찾을 수 없음';
+                loadingDiv.style.color = 'red';
+                return;
+              }
+              
+              // 완전한 GIF 객체 구성
+              const completeGif = {
+                header: gifData.header,
+                frames: gifData.frames,
+                images: gifData.images,
+                gct: gifData.gct
+              };
+              
+              // jsgif 결과로 프레임 설정
+              setupGifFramesFromJsgif(windowId, completeGif, canvas, loadingDiv, prevBtn, nextBtn, frameInfo);
+            }
+          };
+          
+          console.log('jsgif parseGIF 비동기 호출...');
+          parseGIF(stream, handler);
+          
+        })
+        .catch(error => {
+          console.error('jsgif 프레임 추출 실패:', error);
+          loadingDiv.innerHTML = '❌ GIF 프레임 추출 실패: ' + error.message;
+          loadingDiv.style.color = 'red';
+        });
+    }
+
+    // jsgif 결과로 GIF 프레임 설정
+    function setupGifFramesFromJsgif(windowId, gif, canvas, loadingDiv, prevBtn, nextBtn, frameInfo) {
+      console.log('jsgif GIF 프레임 설정 중...');
+      
+      const ctx = canvas.getContext('2d');
+      const frames = gif.frames;
+      
+      // GIF 크기 설정 (헤더에서 가져옴)
+      canvas.width = gif.header.width;
+      canvas.height = gif.header.height;
+      
+      console.log(`GIF 크기: ${canvas.width}x${canvas.height}`);
+      
+      // 각 프레임을 Canvas로 렌더링
+      const frameImages = [];
+      let firstFrameCanvas = null;
+      const delays = [];
+      
+      // 배경색 설정 (기본값)
+      let backgroundColor = 'white';
+      
+      for (let i = 0; i < frames.length; i++) {
+        const frame = frames[i];
+        console.log(`프레임 ${i + 1} 처리 중...`, frame);
+        
+        // 프레임용 임시 캔버스 생성
+        const frameCanvas = document.createElement('canvas');
+        frameCanvas.width = canvas.width;
+        frameCanvas.height = canvas.height;
+        const frameCtx = frameCanvas.getContext('2d');
+        
+        // 배경색 설정
+        frameCtx.fillStyle = backgroundColor;
+        frameCtx.fillRect(0, 0, frameCanvas.width, frameCanvas.height);
+        
+        // 프레임 이미지 데이터 처리
+        if (frame.image && frame.image.pixels) {
+          const imageData = frameCtx.createImageData(frame.image.width, frame.image.height);
+          
+          // 실제 색상 테이블 찾기 (로컬 > 글로벌)
+          let colorTable = null;
+          if (frame.image.lct) {
+            colorTable = frame.image.lct;
+            console.log('로컬 색상 테이블 사용');
+          } else if (gif.header.gct) {
+            colorTable = gif.header.gct;
+            console.log('글로벌 색상 테이블 사용');
+          }
+          
+          // jsgif에서 pixels는 이미 디코딩된 팔레트 인덱스 배열
+          for (let j = 0; j < frame.image.pixels.length; j++) {
+            const pixelIndex = j * 4;
+            const paletteIndex = frame.image.pixels[j];
+            
+            if (colorTable && paletteIndex < colorTable.length) {
+              // 실제 색상 테이블이 있으면 사용
+              const colorEntry = colorTable[paletteIndex];
+              if (Array.isArray(colorEntry) && colorEntry.length >= 3) {
+                imageData.data[pixelIndex] = colorEntry[0];     // R
+                imageData.data[pixelIndex + 1] = colorEntry[1]; // G
+                imageData.data[pixelIndex + 2] = colorEntry[2]; // B
+                imageData.data[pixelIndex + 3] = 255;           // A
+              } else {
+                // 색상 테이블 형식이 다른 경우 밝은 그레이스케일
+                const brightValue = Math.min(255, paletteIndex * 8); // 더 밝게
+                imageData.data[pixelIndex] = brightValue;
+                imageData.data[pixelIndex + 1] = brightValue;
+                imageData.data[pixelIndex + 2] = brightValue;
+                imageData.data[pixelIndex + 3] = 255;
+              }
+            } else {
+              // 색상 테이블이 없으면 밝은 그레이스케일 사용
+              const brightValue = Math.min(255, paletteIndex * 8); // 8배 더 밝게
+              imageData.data[pixelIndex] = brightValue;
+              imageData.data[pixelIndex + 1] = brightValue;
+              imageData.data[pixelIndex + 2] = brightValue;
+              imageData.data[pixelIndex + 3] = 255;
+            }
+          }
+          
+          // 프레임을 캔버스에 그리기
+          frameCtx.putImageData(imageData, frame.image.leftPos || 0, frame.image.topPos || 0);
+        }
+        
+        if (i === 0) firstFrameCanvas = frameCanvas;
+        
+        // Canvas를 이미지로 변환
+        const frameImg = new Image();
+        frameImg.src = frameCanvas.toDataURL();
+        frameImages.push(frameImg);
+        
+        // 지연 시간 (gce에서 가져옴)
+        const delay = (frame.gce && frame.gce.delay ? frame.gce.delay : 10) * 10; // 밀리초로 변환
+        delays.push(delay);
+        
+        console.log(`프레임 ${i + 1}: ${frame.image?.width || 0}x${frame.image?.height || 0}, 지연: ${delay}ms`);
+      }
+      
+      // 첫 번째 프레임 그리기 (frameImages[0] 는 아직 디코딩 전이라 그 canvas 를 바로 사용)
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(firstFrameCanvas, 0, 0);
+      
+      // GIF 데이터 저장
+      const windowData = windows.get(windowId);
+      if (windowData) {
+        windowData.gifData = {
+          canvas: canvas,
+          ctx: ctx,
+          currentFrame: 0,
+          totalFrames: frameImages.length,
+          isPlaying: false,
+          playInterval: null,
+          frameDelays: delays,
+          frameImages: frameImages,
+          width: canvas.width,
+          height: canvas.height
+        };
+        
+        windows.set(windowId, windowData);
+      }
+      
+      // UI 업데이트
+      loadingDiv.style.display = 'none';
+      prevBtn.disabled = frameImages.length <= 1;
+      nextBtn.disabled = frameImages.length <= 1;
+      frameInfo.textContent = `Frame: 1/${frameImages.length}`;
+      
+      console.log(`jsgif GIF 설정 완료: ${frameImages.length}개 프레임, 실제 저장된 이미지 사용`);
+    }
+
+
+
+
+
+    // 폴백 GIF 추출 (기존 방식)
+    function fallbackGifExtraction(gifUrl, windowId, canvas, loadingDiv, prevBtn, nextBtn, frameInfo) {
+      const img = new Image();
+      img.onload = function() {
+        const frameData = {
+          frames: [img],
+          delays: [100],
+          width: img.width,
+          height: img.height
+        };
+        setupGifFrames(windowId, frameData, canvas, loadingDiv, prevBtn, nextBtn, frameInfo);
+      };
+      img.onerror = function() {
+        loadingDiv.innerHTML = '❌ Failed to load GIF';
+        loadingDiv.style.color = 'red';
+      };
+      img.src = gifUrl;
+    }
+
+    // GIF 프레임 설정 공통 함수
+    function setupGifFrames(windowId, frameData, canvas, loadingDiv, prevBtn, nextBtn, frameInfo) {
+      const ctx = canvas.getContext('2d');
+      
+      // Canvas 크기 설정
+      canvas.width = frameData.width;
+      canvas.height = frameData.height;
+      
+      // 첫 번째 프레임 그리기
+      if (frameData.frames.length > 0) {
+        ctx.drawImage(frameData.frames[0], 0, 0);
+      }
+      
+      // GIF 프레임 데이터 저장
+      const windowData = windows.get(windowId);
+      if (windowData) {
+        windowData.gifData = {
+          canvas: canvas,
+          ctx: ctx,
+          currentFrame: 0,
+          totalFrames: frameData.frames.length,
+          isPlaying: false,
+          playInterval: null,
+          frameDelays: frameData.delays,
+          frameImages: frameData.frames,
+          width: frameData.width,
+          height: frameData.height
+        };
+        
+        windows.set(windowId, windowData);
+      }
+      
+      // 로딩 완료
+      loadingDiv.style.display = 'none';
+      prevBtn.disabled = frameData.frames.length <= 1;
+      nextBtn.disabled = frameData.frames.length <= 1;
+      frameInfo.textContent = `Frame: 1/${frameData.frames.length}`;
+      
+      // 프레임 정보 업데이트
+      updateGifFrameInfo(windowId);
+    }
+
+
+
+    // GIF 프레임 정보 업데이트
+    function updateGifFrameInfo(windowId) {
+      const windowData = windows.get(windowId);
+      if (!windowData || !windowData.gifData) return;
+      
+      const gifData = windowData.gifData;
+      const frameInfo = document.getElementById(`frame-info-${windowId}`);
+      
+      if (frameInfo) {
+        const delay = gifData.frameDelays[gifData.currentFrame] || 100;
+        frameInfo.textContent = `Frame: ${gifData.currentFrame + 1}/${gifData.totalFrames} (${delay}ms)`;
+      }
+    }
+
+    // GIF 프레임 변경
+    function changeGifFrame(windowId, direction) {
+      const windowData = windows.get(windowId);
+      if (!windowData || !windowData.gifData) return;
+      
+      const gifData = windowData.gifData;
+      const prevBtn = document.getElementById(`prev-frame-${windowId}`);
+      const nextBtn = document.getElementById(`next-frame-${windowId}`);
+      
+      // 현재 프레임 계산
+      let newFrame = gifData.currentFrame + direction;
+      
+      // 범위 체크
+      if (newFrame < 0) newFrame = gifData.totalFrames - 1;
+      if (newFrame >= gifData.totalFrames) newFrame = 0;
+      
+      gifData.currentFrame = newFrame;
+      
+      // 실제 프레임 이미지 그리기
+      drawGifFrame(windowId, newFrame);
+      
+      // 버튼 상태 업데이트
+      prevBtn.disabled = gifData.totalFrames <= 1;
+      nextBtn.disabled = gifData.totalFrames <= 1;
+      
+      // 프레임 정보 업데이트
+      updateGifFrameInfo(windowId);
+      
+      windows.set(windowId, windowData);
+    }
+
+    // 실제 GIF 프레임 그리기
+    function drawGifFrame(windowId, frameIndex) {
+      const windowData = windows.get(windowId);
+      if (!windowData || !windowData.gifData) return;
+      
+      const gifData = windowData.gifData;
+      const ctx = gifData.ctx;
+      
+      // 캔버스 클리어
+      ctx.clearRect(0, 0, gifData.canvas.width, gifData.canvas.height);
+      
+      // 해당 프레임 이미지가 있는지 확인
+      if (gifData.frameImages && gifData.frameImages[frameIndex]) {
+        // 실제 프레임 이미지 그리기
+        ctx.drawImage(gifData.frameImages[frameIndex], 0, 0, gifData.canvas.width, gifData.canvas.height);
+      } else {
+        // 프레임 이미지가 없으면 첫 번째 이미지 사용
+        if (gifData.frameImages && gifData.frameImages[0]) {
+          ctx.drawImage(gifData.frameImages[0], 0, 0, gifData.canvas.width, gifData.canvas.height);
+        }
+      }
+      
+      // 프레임 번호 표시 제거 - 패널 하단에 이미 표시되고 있음
+      // ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      // ctx.fillRect(10, 10, 100, 25);
+      // ctx.fillStyle = 'white';
+      // ctx.font = '12px Arial';
+      // ctx.fillText(`Frame ${frameIndex + 1}/${gifData.totalFrames}`, 15, 27);
+    }
+
+    // GIF 재생/일시정지 토글
+    function toggleGifPlayback(windowId) {
+      const windowData = windows.get(windowId);
+      if (!windowData || !windowData.gifData) return;
+      
+      const gifData = windowData.gifData;
+      const playPauseBtn = document.getElementById(`play-pause-${windowId}`);
+      
+      if (gifData.isPlaying) {
+        // 일시정지
+        if (gifData.playInterval) {
+          clearTimeout(gifData.playInterval);
+          gifData.playInterval = null;
+        }
+        gifData.isPlaying = false;
+        playPauseBtn.textContent = '▶ Play';
+        playPauseBtn.style.background = '#28a745';
+      } else {
+        // 재생
+        gifData.isPlaying = true;
+        playPauseBtn.textContent = '⏸ Pause';
+        playPauseBtn.style.background = '#fd7e14';
+        
+        // 자동 재생 (각 프레임의 실제 지연 시간 사용)
+        function playNextFrame() {
+          if (gifData.isPlaying && gifData.totalFrames > 1) {
+            // 다음 프레임으로 이동
+            let nextFrame = gifData.currentFrame + 1;
+            if (nextFrame >= gifData.totalFrames) {
+              nextFrame = 0; // 첫 번째 프레임으로 돌아감
+            }
+            
+            gifData.currentFrame = nextFrame;
+            drawGifFrame(windowId, nextFrame);
+            updateGifFrameInfo(windowId);
+            
+            const delay = gifData.frameDelays[nextFrame] || 100;
+            gifData.playInterval = setTimeout(playNextFrame, delay);
+          }
+        }
+        
+        playNextFrame();
+      }
+      
+      windows.set(windowId, windowData);
+    }
+
+    // GIF 다운로드 함수
+    function downloadGif(filename) {
+      const link = document.createElement('a');
+      link.href = `output/${filename}`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // 새 탭에서 GIF 열기
+    function openGifInNewTab(filename) {
+      window.open(`output/${filename}`, '_blank');
+    }
+
+    // GIF 캔버스 크기 업데이트
+    function updateGifCanvasSize(windowId) {
+      const windowData = windows.get(windowId);
+      if (!windowData || !windowData.isGif || !windowData.gifData) return;
+      
+      const canvas = windowData.gifData.canvas;
+      const container = canvas.parentElement;
+      
+      if (container && canvas) {
+        // 컨테이너 크기에 맞게 캔버스 크기 조절
+        const containerRect = container.getBoundingClientRect();
+        const maxWidth = containerRect.width - 20; // 패딩 고려
+        const maxHeight = containerRect.height - 20;
+        
+        // 원본 비율 유지하면서 크기 조절
+        const originalWidth = windowData.gifData.width || canvas.width;
+        const originalHeight = windowData.gifData.height || canvas.height;
+        const aspectRatio = originalWidth / originalHeight;
+        
+        let newWidth = maxWidth;
+        let newHeight = maxWidth / aspectRatio;
+        
+        if (newHeight > maxHeight) {
+          newHeight = maxHeight;
+          newWidth = maxHeight * aspectRatio;
+        }
+        
+        // 캔버스 크기 설정
+        canvas.style.width = `${newWidth}px`;
+        canvas.style.height = `${newHeight}px`;
+        
+        // 현재 프레임 다시 그리기
+        drawGifFrame(windowId, windowData.gifData.currentFrame);
+      }
+    }
+    
+    function makeWindowDraggable(windowElement) {
+      const header = windowElement.querySelector('.plot-window-header');
+      let isDragging = false;
+      let startX, startY, startLeft, startTop;
+      
+      header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.plot-window-btn')) return;
+        
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = parseInt(windowElement.style.left) || 0;
+        startTop = parseInt(windowElement.style.top) || 0;
+        
+        header.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const newLeft = startLeft + (e.clientX - startX);
+        const newTop = startTop + (e.clientY - startY);
+        
+        // Keep window within canvas bounds
+        const canvas = document.getElementById('drawing');
+        const canvasRect = canvas.getBoundingClientRect();
+        const windowRect = windowElement.getBoundingClientRect();
+        
+        const maxLeft = canvasRect.width - windowRect.width;
+        const maxTop = canvasRect.height - windowRect.height;
+        
+        windowElement.style.left = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+        windowElement.style.top = `${Math.max(0, Math.min(newTop, maxTop))}px`;
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          header.style.cursor = 'move';
+        }
+      });
+    }
+    
+    function makeWindowResizable(windowElement, windowId) {
+      const resizeHandle = windowElement.querySelector('.plot-window-resize-handle');
+      let isResizing = false;
+      let startX, startY, startWidth, startHeight;
+      
+      resizeHandle.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = parseInt(window.getComputedStyle(windowElement).width);
+        startHeight = parseInt(window.getComputedStyle(windowElement).height);
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const newWidth = Math.max(300, startWidth + (e.clientX - startX));
+        const newHeight = Math.max(250, startHeight + (e.clientY - startY));
+        
+        windowElement.style.width = `${newWidth}px`;
+        windowElement.style.height = `${newHeight}px`;
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          
+          // Check if this is a GIF window
+          const windowData = windows.get(windowId);
+          if (windowData && windowData.isGif) {
+            // For GIF windows, just update canvas size
+            setTimeout(() => {
+              updateGifCanvasSize(windowId);
+            }, 100);
+          } else {
+            // For ROOT plot windows, refresh the plot
+            setTimeout(() => {
+              refreshPlotInWindow(windowId);
+            }, 100);
+          }
+        }
+      });
+      
+      // Use ResizeObserver for automatic refresh when window size changes
+      if (window.ResizeObserver) {
+        const resizeObserver = new ResizeObserver(entries => {
+          for (let entry of entries) {
+            if (entry.target === windowElement && !isResizing) {
+              // Check if this is a GIF window
+              const windowData = windows.get(windowId);
+              if (windowData && windowData.isGif) {
+                // For GIF windows, just update canvas size
+                setTimeout(() => {
+                  updateGifCanvasSize(windowId);
+                }, 50);
+              } else {
+                // For ROOT plot windows, refresh the plot
+                setTimeout(() => {
+                  refreshPlotInWindow(windowId);
+                }, 50);
+              }
+            }
+          }
+        });
+        resizeObserver.observe(windowElement);
+        
+        // Store observer reference for cleanup if needed
+        if (!windowElement.resizeObserver) {
+          windowElement.resizeObserver = resizeObserver;
+        }
+      }
+    }
+    
+    function updateWindowCount() {
+      const countElement = document.getElementById('windowCount');
+      const welcomeElement = document.querySelector('.canvas-welcome');
+      const closeAllBtn = document.getElementById('closeAllWindowsBtn');
+      
+      if (windows.size > 0) {
+        countElement.textContent = `Windows: ${windows.size}`;
+        countElement.style.display = 'block';
+        welcomeElement.style.display = 'none';
+        if (closeAllBtn) closeAllBtn.disabled = false;
+      } else {
+        countElement.style.display = 'none';
+        welcomeElement.style.display = 'block';
+        if (closeAllBtn) closeAllBtn.disabled = true;
+      }
+    }
+    
+    function closeAllPlotWindows() {
+      if (windows.size === 0) return;
+      
+      const windowCount = windows.size;
+      
+      // Close all windows
+      const windowIds = Array.from(windows.keys());
+      windowIds.forEach(windowId => {
+        closePlotWindow(windowId);
+      });
+      
+      // Show confirmation message
+      const statusElement = document.getElementById('status');
+      if (statusElement) {
+        statusElement.textContent = `Closed ${windowCount} plot window${windowCount > 1 ? 's' : ''}`;
+        setTimeout(() => {
+          statusElement.textContent = 'Ready';
+        }, 3000);
+      }
+    }
+    
+    // Command Interface functions
+    function updateKillButtonState() {
+      const killBtn = document.getElementById('killBtn');
+      if (!killBtn) return;
+      
+      // 프로세스 상태 확인
+      fetch('/process_status')
+        .then(response => response.json())
+        .then(data => {
+          if (data.running) {
+            killBtn.disabled = false;
+            killBtn.textContent = `Kill Process (${data.pid})`;
+          } else {
+            killBtn.disabled = true;
+            killBtn.textContent = 'Kill Process';
+          }
+      })
+      .catch(error => {
+          console.error('Error checking process status:', error);
+          killBtn.disabled = true;
+          killBtn.textContent = 'Kill Process';
+        });
+    }
+    
+    function killProcess() {
+      fetch('/kill_process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          addToOutput('Process terminated by user', 'command-error');
+          if (currentEventSource) {
+            currentEventSource.close();
+            currentEventSource = null;
+          }
+        } else {
+          addToOutput(`Failed to kill process: ${data.message}`, 'command-error');
+        }
+        addToOutput(''); // Empty line for spacing
+        updateKillButtonState();
+      })
+      .catch(error => {
+        addToOutput(`Error killing process: ${error}`, 'command-error');
+        addToOutput(''); // Empty line for spacing
+      });
+    }
+    
+    function addToOutput(text, className, shouldOverwrite = false) {
+      const commandOutput = document.getElementById('commandOutput');
+      if (!commandOutput) return;
+      
+      // 더 넓은 진행률 패턴 감지
+      const isProgressLine = /(\d+\s*\/\s*\d+\s+(events|processed|entries))|(\d+%)|(\[\s*\d+\s*\/\s*\d+\s*\])|(\d+\s+of\s+\d+)/i.test(text);
+      
+      // 다양한 ANSI 코드 형태 감지 (\x1b, \033, \u001b)
+      const hasCarriageReturn = text.includes('\r');
+      const hasCursorUp = /[\x1b\u001b\033]\[F/.test(text) || /[\x1b\u001b\033]\[A/.test(text);
+      const hasCursorMovement = /[\x1b\u001b\033]\[[\d;]*[ABCD]/.test(text);
+      const hasBothCodes = hasCarriageReturn && hasCursorUp;
+      
+      // 덮어쓰기 조건 확장
+      const shouldReallyOverwrite = shouldOverwrite || 
+                                   isProgressLine || 
+                                   hasBothCodes || 
+                                   (hasCarriageReturn && !text.includes('\n')) ||
+                                   hasCursorUp ||
+                                   hasCursorMovement;
+      
+      // 덮어쓰기 처리
+      if (shouldReallyOverwrite && lastOutputElement && lastOutputElement.parentNode) {
+        
+        // 텍스트 정리: 다양한 ANSI 이스케이프 코드 제거
+        const cleanText = text
+          .replace(/\r/g, '')
+          .replace(/[\x1b\u001b\033]\[F/g, '')
+          .replace(/[\x1b\u001b\033]\[A/g, '')
+          .replace(/[\x1b\u001b\033]\[[\d;]*[ABCD]/g, '');
+        
+        const htmlText = convertAnsiToHtml(cleanText);
+        
+        lastOutputElement.innerHTML = htmlText;
+        lastOutputElement.className = className || lastOutputElement.className;
+        
+        commandOutput.scrollTop = commandOutput.scrollHeight;
+        
+        // 진행률이나 덮어쓰기 라인임을 표시 (디버깅용)
+        if (isProgressLine) {
+          lastOutputElement.setAttribute('data-progress', 'true');
+        }
+        
+        return;
+      }
+      
+      // 새 요소 생성
+      const div = document.createElement('div');
+      if (className) div.className = className;
+      
+      // ANSI escape codes를 HTML로 변환
+      const cleanText = text.replace(/\r.*$/gm, function(match) {
+        return match.substring(1); // \r 이후 텍스트만 유지
+      });
+      const htmlText = convertAnsiToHtml(cleanText);
+      div.innerHTML = htmlText;
+      
+      commandOutput.appendChild(div);
+      lastOutputElement = div; // 마지막 요소 기록
+      
+      // 진행률 라인임을 표시 (디버깅용)
+      if (isProgressLine) {
+        div.setAttribute('data-progress', 'true');
+      }
+      
+      commandOutput.scrollTop = commandOutput.scrollHeight;
+    }
+    
+    function convertAnsiToHtml(text) {
+      // ANSI escape code to HTML conversion
+      const ansiMap = {
+        // Reset - handle ESC[0m, ESC[00m
+        '(?:\\x1b|\\u001b|\\033)\\[0m': '</span>',
+        '(?:\\x1b|\\u001b|\\033)\\[00m': '</span>',
+        
+        // Text styles
+        '(?:\\x1b|\\u001b|\\033)\\[1m': '<span style="font-weight: bold;">',
+        '(?:\\x1b|\\u001b|\\033)\\[3m': '<span style="font-style: italic;">',
+        '(?:\\x1b|\\u001b|\\033)\\[4m': '<span style="text-decoration: underline;">',
+        
+        // Foreground colors
+        '(?:\\x1b|\\u001b|\\033)\\[30m': '<span style="color: #000000;">',  // Black
+        '(?:\\x1b|\\u001b|\\033)\\[31m': '<span style="color: #cd0000;">',  // Red
+        '(?:\\x1b|\\u001b|\\033)\\[32m': '<span style="color: #00cd00;">',  // Green
+        '(?:\\x1b|\\u001b|\\033)\\[33m': '<span style="color: #cdcd00;">',  // Yellow
+        '(?:\\x1b|\\u001b|\\033)\\[34m': '<span style="color: #0000ee;">',  // Blue
+        '(?:\\x1b|\\u001b|\\033)\\[35m': '<span style="color: #cd00cd;">',  // Magenta
+        '(?:\\x1b|\\u001b|\\033)\\[36m': '<span style="color: #00cdcd;">',  // Cyan
+        '(?:\\x1b|\\u001b|\\033)\\[37m': '<span style="color: #e5e5e5;">',  // White
+        
+        // Bright foreground colors
+        '(?:\\x1b|\\u001b|\\033)\\[90m': '<span style="color: #7f7f7f;">',  // Bright Black (Gray)
+        '(?:\\x1b|\\u001b|\\033)\\[91m': '<span style="color: #ff0000;">',  // Bright Red
+        '(?:\\x1b|\\u001b|\\033)\\[92m': '<span style="color: #00ff00;">',  // Bright Green
+        '(?:\\x1b|\\u001b|\\033)\\[93m': '<span style="color: #ffff00;">',  // Bright Yellow
+        '(?:\\x1b|\\u001b|\\033)\\[94m': '<span style="color: #5c5cff;">',  // Bright Blue
+        '(?:\\x1b|\\u001b|\\033)\\[95m': '<span style="color: #ff00ff;">',  // Bright Magenta
+        '(?:\\x1b|\\u001b|\\033)\\[96m': '<span style="color: #00ffff;">',  // Bright Cyan
+        '(?:\\x1b|\\u001b|\\033)\\[97m': '<span style="color: #ffffff;">',  // Bright White
+      };
+      
+      let result = text;
+      
+      // First, convert common escape character representations to actual escape character
+      result = result.replace(/\\x1b/g, '\x1b');
+      result = result.replace(/\\033/g, '\x1b');
+      
+      // Replace ANSI codes with HTML
+      for (const [ansi, html] of Object.entries(ansiMap)) {
+        const regex = new RegExp(ansi, 'g');
+        result = result.replace(regex, html);
+      }
+      
+      // Handle cursor movement codes (remove them as we handle positioning differently)
+      result = result.replace(/(?:\x1b|\u001b|\033)\[F/g, '');     // Cursor up to previous line
+      result = result.replace(/(?:\x1b|\u001b|\033)\[A/g, '');     // Cursor up
+      result = result.replace(/(?:\x1b|\u001b|\033)\[B/g, '');     // Cursor down
+      result = result.replace(/(?:\x1b|\u001b|\033)\[C/g, '');     // Cursor right
+      result = result.replace(/(?:\x1b|\u001b|\033)\[D/g, '');     // Cursor left
+      result = result.replace(/(?:\x1b|\u001b|\033)\[K/g, '');     // Clear to end of line
+      result = result.replace(/(?:\x1b|\u001b|\033)\[J/g, '');     // Clear screen
+      result = result.replace(/(?:\x1b|\u001b|\033)\[[\d;]*[ABCDFGHJK]/g, ''); // Other cursor/clear codes
+      
+      // Handle any remaining unprocessed ANSI codes by removing them
+      result = result.replace(/(?:\x1b|\u001b|\033)\[[\d;]*m/g, '');
+      
+      // Remove any remaining escape characters that might show as boxes
+      result = result.replace(/[\x1b\u001b\033]/g, '');
+      
+      // Convert newlines to <br> tags
+      result = result.replace(/\n/g, '<br>');
+      
+      return result;
+    }
+    
+    function executeCommandStream(command) {
+      if (!command.trim()) return;
+      
+      // 명령어 히스토리에 추가
+      addToOutput(`$ ${command}`, 'command-history');
+      
+      const eventSource = new EventSource(`/execute_stream?command=${encodeURIComponent(command)}`);
+      currentEventSource = eventSource;
+      
+      // 프로세스 시작 후 Kill 버튼 상태 업데이트
+      setTimeout(() => {
+        updateKillButtonState();
+      }, 1000);
+      
+      eventSource.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          
+          switch(data.type) {
+            case 'command':
+              // 명령어는 이미 위에서 출력했으므로 건너뛰기
+              break;
+            case 'output':
+              // 덮어쓰기 패턴 감지
+              const hasEscapeF = data.content.includes('\x1b[F');
+              const hasCarriageReturn = data.content.includes('\r');
+              const isProgressPattern = /(\d+\s*\/\s*\d+\s+(events|processed|entries))|(\d+%)|(\[\s*\d+\s*\/\s*\d+\s*\])|(\d+\s+of\s+\d+)/i.test(data.content);
+              
+              // 덮어쓰기 조건: \x1b[F 포함 또는 진행률 패턴
+              const shouldOverwrite = hasEscapeF || isProgressPattern || (hasCarriageReturn && !data.content.includes('\n'));
+              
+              addToOutput(data.content, 'command-output', shouldOverwrite);
+              break;
+            case 'error':
+              addToOutput(data.content, 'command-error');
+              break;
+            case 'complete':
+              addToOutput(data.content, data.content.includes('code: 0') ? 'command-output' : 'command-error');
+              addToOutput(''); // Empty line for spacing
+              eventSource.close();
+              currentEventSource = null;
+              updateKillButtonState();
+              break;
+          }
+        } catch (e) {
+          console.error('Error parsing SSE data:', e);
+        }
+      };
+      
+      eventSource.onerror = function(event) {
+        console.error('EventSource error:', event);
+        addToOutput('Connection error - command may still be running', 'command-error');
+        addToOutput(''); // Empty line for spacing
+        eventSource.close();
+        currentEventSource = null;
+        updateKillButtonState();
+      };
+      
+      // 연결 종료 처리
+      eventSource.addEventListener('close', function() {
+        eventSource.close();
+        currentEventSource = null;
+        updateKillButtonState();
+      });
+    }
+    
+    function clearActive() {
+      document.querySelectorAll('#fileList .file-header').forEach(header => {
+        header.classList.remove('active');
+      });
+    }
+
+    function loadRootFile(filename) {
+      if (filename.toLowerCase().endsWith('.gif')) {
+        createGifWindow(filename);
+        return;
+      }
+      if (!jsrootReady) {
+        document.getElementById('status').textContent = 'JSROOT not ready yet...';
+        return;
+      }
+
+      document.getElementById('status').textContent = `Loading ${filename}...`;
+      
+      clearActive();
+      const fileItem = document.querySelector(`#fileList .file-item[data-file="${filename}"]`);
+      if (fileItem) {
+        const header = fileItem.querySelector('.file-header');
+        if (header) header.classList.add('active');
+      }
+
+      // Open ROOT file with cache busting
+      const timestamp = Date.now();
+      const fileUrl = `output/${filename}?t=${timestamp}`;
+      
+      JSROOT.openFile(fileUrl).then(file => {
+        currentFile = file;
+        
+        if (!file) {
+          document.getElementById('status').textContent = `Error: Could not open ${filename}`;
+          return;
+        }
+
+        // Load file contents into sidebar dropdown instead of hierarchy
+        loadFileContentsToSidebar(filename, file);
+        
+        document.getElementById('status').textContent = `${filename} loaded successfully (updated: ${new Date().toLocaleTimeString()})`;
+      }).catch(error => {
+        console.error('Error opening file:', error);
+        document.getElementById('status').textContent = `Error: ${error}`;
+      });
+    }
+
+    function loadFileContentsToSidebar(filename, file) {
+      // Find the file item in sidebar
+      const fileItem = document.querySelector(`[data-file="${filename}"]`);
+      if (!fileItem) return;
+
+      // Check if contents already exist
+      let contentsDiv = fileItem.nextElementSibling;
+      if (!contentsDiv || !contentsDiv.classList.contains('file-contents')) {
+        contentsDiv = document.createElement('div');
+        contentsDiv.className = 'file-contents';
+        fileItem.parentNode.insertBefore(contentsDiv, fileItem.nextSibling);
+      }
+
+      // Clear previous contents
+      contentsDiv.innerHTML = '';
+
+      // Check if this is a GIF file
+      if (filename.toLowerCase().endsWith('.gif')) {
+        // For GIF files, create a direct view option
+        const contentItem = document.createElement('div');
+        contentItem.className = 'content-item';
+        contentItem.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span>🎬 GIF Animation</span>
+            <span style="font-size: 11px; color: #666;">(Click to view)</span>
+          </div>
+        `;
+        contentItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          createGifWindow(filename);
+        });
+        contentsDiv.appendChild(contentItem);
+        return;
+      }
+
+      // For ROOT files, show the objects
+      if (file.fKeys) {
+        file.fKeys.forEach(key => {
+          // Filter out StreamerInfo (TList) items
+          if (key.fName === 'StreamerInfo' && key.fClassName === 'TList') {
+            return; // Skip this item
+          }
+          // DQM_SaveCanvases also stores each canvas's histograms in <canvas>_hists directories; list only the canvases
+          if (key.fClassName === 'TDirectoryFile' || key.fClassName === 'TDirectory') {
+            return;
+          }
+          
+          const contentItem = document.createElement('div');
+          contentItem.className = 'content-item';
+          contentItem.textContent = `${key.fName} (${key.fClassName})`;
+          contentItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            createPlotWindow(key.fName, file);
+          });
+          contentsDiv.appendChild(contentItem);
+        });
+      } else {
+        const noContent = document.createElement('div');
+        noContent.className = 'content-item';
+        noContent.textContent = 'No plottable objects found';
+        noContent.style.fontStyle = 'italic';
+        noContent.style.color = '#666';
+        contentsDiv.appendChild(noContent);
+      }
+
+      // Expand the dropdown
+      const header = fileItem.querySelector('.file-header');
+      const icon = fileItem.querySelector('.file-dropdown-icon');
+      if (header && icon) {
+        header.classList.add('active');
+        icon.classList.add('expanded');
+        contentsDiv.classList.add('expanded');
+      }
+    }
+
+    function toggleFileContents(filename) {
+      const fileItem = document.querySelector(`[data-file="${filename}"]`);
+      if (!fileItem) return;
+      
+      // Load file if not loaded yet
+      if (!fileItem.nextElementSibling || !fileItem.nextElementSibling.classList.contains('file-contents')) {
+        loadRootFile(filename);
+      } else {
+        toggleFileDropdown(fileItem);
+      }
+    }
+
+    function toggleFileDropdown(fileItem) {
+      const header = fileItem.querySelector('.file-header');
+      const icon = fileItem.querySelector('.file-dropdown-icon');
+      const contents = fileItem.nextElementSibling;
+
+      if (contents && contents.classList.contains('file-contents')) {
+        const isExpanded = contents.classList.contains('expanded');
+        
+        if (isExpanded) {
+          // Collapse
+          header.classList.remove('active');
+          icon.classList.remove('expanded');
+          contents.classList.remove('expanded');
+        } else {
+          // Expand
+          header.classList.add('active');
+          icon.classList.add('expanded');
+          contents.classList.add('expanded');
+        }
+      }
+    }
+    
+    function showProcessKillModal() {
+      const processKillModal = document.getElementById('processKillModal');
+      const processList = document.getElementById('processList');
+      const killError = document.getElementById('killError');
+      
+      processKillModal.style.display = 'flex';
+      processList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">Loading processes...</div>';
+      killError.textContent = '';
+      
+      // Fetch ./monit processes
+      fetch('/find_monit_processes')
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            if (data.count === 0) {
+              processList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No DQM processes found</div>';
+              document.getElementById('confirmKillBtn').disabled = true;
+            } else {
+              let html = `<div style="font-weight: bold; margin-bottom: 10px; color: #333;">Found ${data.count} process(es):</div>`;
+              data.processes.forEach((proc, index) => {
+                html += `
+                  <div style="background: white; margin: 5px 0; padding: 8px; border-radius: 3px; border-left: 3px solid #dc3545;">
+                    <div style="font-weight: bold; color: #dc3545;">PID: ${proc.pid}</div>
+                    <div style="color: #666; margin-top: 3px; word-break: break-all;">${proc.command}</div>
+                  </div>
+                `;
+              });
+              processList.innerHTML = html;
+              document.getElementById('confirmKillBtn').disabled = false;
+            }
+          } else {
+            processList.innerHTML = `<div style="text-align: center; color: #dc3545; padding: 20px;">Error: ${data.message}</div>`;
+            document.getElementById('confirmKillBtn').disabled = true;
+          }
+        })
+        .catch(error => {
+          processList.innerHTML = `<div style="text-align: center; color: #dc3545; padding: 20px;">Error loading processes: ${error}</div>`;
+          document.getElementById('confirmKillBtn').disabled = true;
+        });
+    }
+    
+    function hideProcessKillModal() {
+      const processKillModal = document.getElementById('processKillModal');
+      processKillModal.style.display = 'none';
+    }
+    
+    function confirmKillAllMonit() {
+      const confirmKillBtn = document.getElementById('confirmKillBtn');
+      const killError = document.getElementById('killError');
+      
+      confirmKillBtn.disabled = true;
+      confirmKillBtn.textContent = 'Killing...';
+      killError.textContent = '';
+      
+      fetch('/kill_all_monit', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            hideProcessKillModal();
+            const message = `✅ ${data.message}`;
+            addToOutput(message, 'command-output');
+            addToOutput(''); // Empty line for spacing
+            
+            // Update kill button state if any process was terminated
+            if (data.killed_count > 0) {
+              updateKillButtonState();
+            }
+          } else {
+            killError.textContent = data.message || 'Failed to kill processes';
+          }
+        })
+        .catch(error => {
+          killError.textContent = `Error: ${error}`;
+        })
+        .finally(() => {
+          confirmKillBtn.disabled = false;
+          confirmKillBtn.textContent = 'Kill All';
+        });
+    }
+    
+    // ROOT object error handling functions
+    function reloadRootObject(windowId, objectName) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      body.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">🔄 Reloading object...</div>';
+      
+      // Wait a bit before reloading (in case file is still being written)
+      setTimeout(() => {
+        loadPlotInWindow(windowId, objectName, windowData.rootFile);
+      }, 1000);
+    }
+    
+    function inspectRootObject(windowId, objectName) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      body.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">🔍 Inspecting object...</div>';
+      
+      windowData.rootFile.readObject(objectName).then(obj => {
+                    if (obj) {
+          // Show detailed object information
+          const objInfo = {
+            name: objectName,
+            type: obj._typename || 'Unknown',
+            title: obj.fTitle || 'No title',
+            entries: obj.fEntries || 'N/A',
+            keys: Object.keys(obj).filter(key => !key.startsWith('_')),
+            properties: {}
+          };
+          
+          // Extract some key properties
+          Object.keys(obj).forEach(key => {
+            if (!key.startsWith('_') && obj[key] !== null && obj[key] !== undefined) {
+              const value = obj[key];
+              if (typeof value === 'object') {
+                objInfo.properties[key] = `[Object: ${value.constructor.name}]`;
+              } else {
+                objInfo.properties[key] = value;
+              }
+            }
+          });
+          
+          body.innerHTML = `
+            <div style="padding: 15px; text-align: left; font-size: 12px; overflow: auto; max-height: 300px;">
+              <h4 style="text-align: center; margin-top: 0;">🔍 Object Inspector</h4>
+              <table style="width: 100%; border-collapse: collapse; font-family: 'Courier New', monospace;">
+                <tr><td style="font-weight: bold; padding: 5px; border: 1px solid #ddd; background: #f8f9fa;">Name:</td><td style="padding: 5px; border: 1px solid #ddd;">${objInfo.name}</td></tr>
+                <tr><td style="font-weight: bold; padding: 5px; border: 1px solid #ddd; background: #f8f9fa;">Type:</td><td style="padding: 5px; border: 1px solid #ddd;">${objInfo.type}</td></tr>
+                <tr><td style="font-weight: bold; padding: 5px; border: 1px solid #ddd; background: #f8f9fa;">Title:</td><td style="padding: 5px; border: 1px solid #ddd;">${objInfo.title}</td></tr>
+                <tr><td style="font-weight: bold; padding: 5px; border: 1px solid #ddd; background: #f8f9fa;">Entries:</td><td style="padding: 5px; border: 1px solid #ddd;">${objInfo.entries}</td></tr>
+              </table>
+              
+              <h5 style="margin: 15px 0 5px 0;">Properties (${objInfo.keys.length}):</h5>
+              <div style="background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 150px; overflow: auto;">
+                <pre style="margin: 0; font-size: 10px;">${JSON.stringify(objInfo.properties, null, 2)}</pre>
+              </div>
+              
+              <div style="text-align: center; margin-top: 15px;">
+                <button onclick="tryAlternativeDrawing('${windowId}', '${objectName}')" style="margin: 5px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                  🎨 Try Drawing Again
+                </button>
+                <button onclick="loadPlotInWindow('${windowId}', '${objectName}', windows.get('${windowId}').rootFile)" style="margin: 5px; padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                  🔄 Back to Plot
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          body.innerHTML = `
+            <div style="color: red; text-align: center; padding: 20px;">
+              <h4>❌ Object not found during inspection</h4>
+              <p>Could not load ${objectName} for inspection.</p>
+              <button onclick="loadPlotInWindow('${windowId}', '${objectName}', windows.get('${windowId}').rootFile)" style="margin-top: 10px; padding: 5px 10px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                ← Back
+              </button>
+            </div>
+          `;
+        }
+      }).catch(err => {
+        body.innerHTML = `
+          <div style="color: red; text-align: center; padding: 20px;">
+            <h4>❌ Inspection failed</h4>
+            <p><strong>Error:</strong> ${err.message || err}</p>
+            <button onclick="loadPlotInWindow('${windowId}', '${objectName}', windows.get('${windowId}').rootFile)" style="margin-top: 10px; padding: 5px 10px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">
+              ← Back
+            </button>
+          </div>
+        `;
+      });
+    }
+    
+    function tryAlternativeDrawing(windowId, objectName) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      
+      windowData.rootFile.readObject(objectName).then(obj => {
+        if (obj) {
+          body.innerHTML = `
+            <div style="padding: 15px; text-align: center;">
+              <h4>🎨 Alternative Drawing Methods</h4>
+              <p>Choose a drawing option for <strong>${objectName}</strong> (${obj._typename || 'Unknown'})</p>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0;">
+                <button onclick="forceDrawWithOption('${windowId}', '${objectName}', 'hist')" style="padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  📊 Histogram (hist)
+                </button>
+                <button onclick="forceDrawWithOption('${windowId}', '${objectName}', 'colz')" style="padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  🌈 Color Plot (colz)
+                </button>
+                <button onclick="forceDrawWithOption('${windowId}', '${objectName}', 'lego')" style="padding: 10px; background: #fd7e14; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  🧱 3D Lego (lego)
+                </button>
+                <button onclick="forceDrawWithOption('${windowId}', '${objectName}', 'surf')" style="padding: 10px; background: #6f42c1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  🏔️ Surface (surf)
+                </button>
+                <button onclick="forceDrawWithOption('${windowId}', '${objectName}', 'box')" style="padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  📦 Box Plot (box)
+                </button>
+                <button onclick="forceDrawWithOption('${windowId}', '${objectName}', '')" style="padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                  ⚙️ Default
+                </button>
+              </div>
+              
+              <div style="margin-top: 20px;">
+                <button onclick="loadPlotInWindow('${windowId}', '${objectName}', windows.get('${windowId}').rootFile)" style="padding: 8px 15px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                  ← Back to Auto-detect
+                </button>
+              </div>
+            </div>
+          `;
+        }
+      }).catch(err => {
+        body.innerHTML = `
+          <div style="color: red; text-align: center; padding: 20px;">
+            <h4>❌ Could not load object for alternative drawing</h4>
+            <p><strong>Error:</strong> ${err.message || err}</p>
+          </div>
+        `;
+      });
+    }
+    
+    function forceDrawWithOption(windowId, objectName, option) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      body.innerHTML = `<div style="text-align: center; padding: 20px; color: #666;">Drawing with option: ${option || 'default'}...</div>`;
+      
+      windowData.rootFile.readObject(objectName).then(obj => {
+                  if (obj) {
+          body.innerHTML = '';
+          
+          JSROOT.draw(body, obj, option).then(() => {
+            // Success! Update window title
+            const titleElement = windowData.element.querySelector('.plot-window-title');
+            if (titleElement) {
+              titleElement.textContent = `${objectName}${option ? ` (${option})` : ''}`;
+            }
+            
+            // Show success message briefly
+            const statusElement = document.getElementById('status');
+            if (statusElement) {
+              statusElement.textContent = `✅ Successfully drew ${objectName} with option: ${option || 'default'}`;
+              setTimeout(() => {
+                statusElement.textContent = 'Ready';
+              }, 3000);
+                  }
+                }).catch(err => {
+            body.innerHTML = `
+              <div style="color: red; text-align: center; padding: 20px;">
+                <h4>❌ Failed to draw with option: ${option || 'default'}</h4>
+                <p><strong>Error:</strong> ${err.message || err}</p>
+                <button onclick="tryAlternativeDrawing('${windowId}', '${objectName}')" style="margin-top: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                  ← Try Other Options
+                </button>
+              </div>
+            `;
+          });
+        }
+      });
+    }
+    
+    // DQM Command Builder Functions
+    // Each type maps to a draw_* executable; commands run in analysis/, the same as typing them there.
+    //   module  : what the Module field means for this type (null : not used)
+    //   methods : methods this type accepts ([] : method not used)
+    const ALL_METHODS = ['IntADC', 'PeakADC', 'Avg', 'Overlay', 'Waveform'];
+    const TYPE_INFO = {
+      single: {
+        module: { label: 'Channels:', token: '<channels>',
+                  placeholder: 'Required: exact channel names from the mapping, e.g. CC1 CC2 / DWC1_R / SFIL4_xp_y2 / HODO_L_01' },
+        methods: ALL_METHODS
+      },
+      module: {
+        module: { label: 'Module:', token: '<module>',
+                  placeholder: 'Required: one calorimeter module, SFIL4 - SFIL8 or Bulk1 - Bulk6 (e.g. SFIL4)' },
+        methods: ALL_METHODS
+      },
+      heatmap: {
+        module: null, placeholder: 'Not used: mean ADC map of every SFIL / Bulk channel',
+        methods: ['IntADC', 'PeakADC']
+      },
+      full: {
+        module: null, placeholder: 'Not used: heatmap + distributions of every SFIL / Bulk channel',
+        methods: ['IntADC', 'PeakADC', 'Avg', 'Overlay']
+      },
+      hodoscope: {
+        module: null, placeholder: 'Not used: all hodoscope strips (HODO_L_01-16, HODO_R_01-16)',
+        methods: ['IntADC', 'PeakADC', 'Avg', 'Overlay']
+      },
+      DWC: {
+        module: null, placeholder: 'Not used: DWC1 / DWC2 channel time, delta t and position',
+        methods: []
+      }
+    };
+
+    // Channel / module names of mapping_CERN2026.h (from /channels). The draw_* executables accept exactly these.
+    let MAPPING_CHANNELS = null;   // Set of channel names
+    let MAPPING_MODULES = null;    // calorimeter modules in mapping order : ['SFIL4', ..., 'Bulk6']
+    function loadMappingChannels() {
+      return fetch('/channels')
+        .then(response => response.json())
+        .then(data => {
+          if (!data.channels) throw new Error(data.error || 'no channel list');
+          MAPPING_CHANNELS = new Set(data.channels);
+          // SFIL4 ... SFIL8, Bulk1 ... Bulk6
+          const order = (m) => (m.startsWith('SFIL') ? 0 : 100) + parseInt(m.replace(/\D/g, ''), 10);
+          MAPPING_MODULES = [...new Set(data.channels
+            .filter(n => /^(SFIL|Bulk)\d+_x[pm]_y\d+$/.test(n))
+            .map(n => n.split('_')[0]))].sort((a, b) => order(a) - order(b));
+        })
+        .catch(error => {
+          console.error('Error loading mapping channels:', error);
+          addToOutput(`❌ Could not load the channel list from the mapping: ${error}`, 'command-error');
+        });
+    }
+
+    // Labels, placeholders and enabled fields follow the selected type / method
+    function updateFormFields() {
+      const type = document.getElementById('typeSelect').value;
+      const info = TYPE_INFO[type];
+      const methodSelect = document.getElementById('methodSelect');
+      const moduleInput = document.getElementById('moduleInput');
+
+      document.getElementById('moduleLabel').textContent = info.module ? info.module.label : 'Module:';
+      moduleInput.placeholder = info.module ? info.module.placeholder : info.placeholder;
+      moduleInput.disabled = !info.module;
+
+      methodSelect.disabled = info.methods.length === 0;
+      Array.from(methodSelect.options).forEach(o => { o.disabled = !info.methods.includes(o.value); });
+      if (info.methods.length && !info.methods.includes(methodSelect.value)) methodSelect.value = info.methods[0];
+
+      // Waveform (event display, one GIF frame per event) : First Event + number of events (max 100)
+      const waveform = !methodSelect.disabled && methodSelect.value === 'Waveform' && info.methods.includes('Waveform');
+      const maxEventInput = document.getElementById('maxEventInput');
+      document.getElementById('maxEventLabel').textContent = waveform ? 'Events (Waveform):' : 'Max Event:';
+      maxEventInput.placeholder = waveform ? 'Optional: events to step through (default / max: 100)'
+                                           : 'Optional: events to read (default: all)';
+      maxEventInput.max = waveform ? 100 : '';
+      document.getElementById('skipEventInput').disabled = !waveform;
+    }
+
+    // Returns { command, error }. A missing Module gives a command with <module> / <channels> in its place and an error.
+    function buildMonitCommand(runNumber) {
+      const type = document.getElementById('typeSelect').value;
+      const method = document.getElementById('methodSelect').value;
+      const module = document.getElementById('moduleInput').value.trim();
+      const maxEvent = document.getElementById('maxEventInput').value.trim();
+      const eventNo = document.getElementById('skipEventInput').value.trim() || '0';
+      const aux = document.getElementById('auxCheck').checked;
+      const info = TYPE_INFO[type];
+
+      const nEvt = maxEvent || '-1';
+      const quote = (list) => list.map(c => `"${c}"`).join(' ');
+      const channelExe = {
+        IntADC: './draw_intADC', PeakADC: './draw_peakADC', Avg: './draw_avg', Overlay: './draw_overlay',
+        Waveform: './draw_singleWaveform'
+      }[method];
+      // draw_singleWaveform takes <firstEvt> <nEvt> where the others take <nEvt>
+      const channelCommand = (channels) =>
+        `${channelExe} ${runNumber} ${method === 'Waveform' ? `${eventNo} ${nEvt}` : nEvt} ${quote(channels)}`;
+      const heatmapVar = method === 'PeakADC' ? 'peak' : 'int';
+
+      // names separated by spaces only; each must be an exact mapping name
+      const tokens = module.split(/\s+/).filter(Boolean);
+      let error = null;
+      if (info.module && tokens.length === 0) {
+        error = `${info.module.label.replace(':', '')} required for type ${type}`;
+      } else if (info.module && !MAPPING_CHANNELS) {
+        error = 'channel list of the mapping is not loaded (restart the server and reload the page)';
+      } else if (type === 'single') {
+        // exact names only : no wildcards, no DAQ:MID
+        const unknown = tokens.filter(t => !MAPPING_CHANNELS.has(t));
+        if (unknown.length)
+          error = `not in the mapping: ${unknown.join(', ')} (use exact names, e.g. CC1, DWC1_R, SFIL4_xp_y2, HODO_L_01)`;
+      } else if (type === 'module') {
+        if (tokens.length !== 1 || !MAPPING_MODULES.includes(tokens[0]))
+          error = `not a calorimeter module: ${module} (one of ${MAPPING_MODULES.join(', ')})`;
+      }
+      const values = tokens.length ? tokens : (info.module ? [info.module.token] : []);
+
+      let command;
+      if (type === 'single') {
+        command = channelCommand(values);
+      } else if (type === 'module') {
+        command = channelCommand(values);
+      } else if (type === 'heatmap') {
+        command = `./draw_heatmap ${runNumber} ${nEvt} ${heatmapVar}`;
+      } else if (type === 'full') {
+        const modules = MAPPING_MODULES || ['SFIL4', 'SFIL5', 'SFIL6', 'SFIL7', 'SFIL8',
+                                            'Bulk1', 'Bulk2', 'Bulk3', 'Bulk4', 'Bulk5', 'Bulk6'];
+        command = `./draw_heatmap ${runNumber} ${nEvt} ${heatmapVar} && ${channelCommand(modules)}`;
+      } else if (type === 'hodoscope') {
+        const plotType = { IntADC: 'i', PeakADC: 'p', Avg: 'a', Overlay: 'o' }[method];
+        command = `./hodoscope ${runNumber} ${nEvt} ${plotType}`;
+      } else if (type === 'DWC') {
+        command = `./DWC ${runNumber} ${nEvt}`;
+      }
+
+      if (aux) command += ` ; ./draw_AUX ${runNumber} ${nEvt}`;
+      return { command, error };
+    }
+
+    function updateCommandPreview() {
+      updateFormFields();
+      const runNumber = document.getElementById('runNumber').value || '<Run#>';
+      const result = buildMonitCommand(runNumber);
+      document.getElementById('commandPreview').textContent = result.command;
+      // red border + reason on hover while the Module field holds a name that is not in the mapping
+      const moduleInput = document.getElementById('moduleInput');
+      const invalid = !!result.error && moduleInput.value.trim() !== '';
+      moduleInput.classList.toggle('invalid', invalid);
+      moduleInput.title = invalid ? result.error : '';
+    }
+
+    function executeMonitCommand() {
+      const runNumber = document.getElementById('runNumber').value;
+
+      // Validation
+      if (!runNumber) {
+        addToOutput('❌ Error: Run Number is required', 'command-error');
+        document.getElementById('runNumber').focus();
+        return;
+      }
+
+      const result = buildMonitCommand(runNumber);
+      if (result.error) {
+        addToOutput(`❌ Error: ${result.error}`, 'command-error');
+        document.getElementById('moduleInput').focus();
+        return;
+      }
+      const command = result.command;
+
+      // Show the command being executed
+      addToOutput(`🚀 Executing DQM command:`, 'command-history');
+      addToOutput(`$ ${command}`, 'command-history');
+      addToOutput(''); // Empty line for spacing
+      
+      // Execute the command
+      executeCommandStream(command);
+    }
+    
+    function setupMonitForm() {
+      // Get form elements
+      const runNumber = document.getElementById('runNumber');
+      const typeSelect = document.getElementById('typeSelect');
+      const methodSelect = document.getElementById('methodSelect');
+      const moduleInput = document.getElementById('moduleInput');
+      const maxEventInput = document.getElementById('maxEventInput');
+      const skipEventInput = document.getElementById('skipEventInput');
+      const auxCheck = document.getElementById('auxCheck');
+      const executeBtn = document.getElementById('executeMonitBtn');
+      
+      // Add event listeners for real-time preview update
+      if (runNumber) runNumber.addEventListener('input', updateCommandPreview);
+      if (typeSelect) typeSelect.addEventListener('change', updateCommandPreview);
+      if (methodSelect) methodSelect.addEventListener('change', updateCommandPreview);
+      if (moduleInput) moduleInput.addEventListener('input', updateCommandPreview);
+      if (maxEventInput) maxEventInput.addEventListener('input', updateCommandPreview);
+      if (skipEventInput) skipEventInput.addEventListener('input', updateCommandPreview);
+      if (auxCheck) auxCheck.addEventListener('change', updateCommandPreview);
+
+      // Execute button
+      if (executeBtn) executeBtn.addEventListener('click', executeMonitCommand);
+
+      // runNumber, moduleInput, maxEventInput, skipEventInput은 기본값 없이 비워둠
+      updateCommandPreview();
+      loadMappingChannels().then(() => {
+        updateCommandPreview();
+        // file labels split multi-channel names with the mapping ("CC1_CC2" -> "CC1 CC2")
+        document.querySelectorAll('#fileList .file-item').forEach(item => {
+          const label = item.querySelector('.file-label');
+          if (label) label.outerHTML = fileLabelHtml(item.getAttribute('data-file'));
+        });
+      });
+    }
+    
+    // File list management functions
+    function loadFileList(isInitialLoad = false) {
+      return fetch('/files')
+        .then(response => response.json())
+        .then(fileInfos => {
+          // Extract filenames from file info objects for compatibility
+          const files = fileInfos.map(fileInfo => fileInfo.name);
+          
+          if (isInitialLoad) {
+            // Initial load - populate entire list
+            currentFileList = [...files];
+            populateFileList(fileInfos);
+          
+          // Auto-load first file if available
+          // newest ROOT file (a GIF cannot be opened by JSROOT)
+          const firstRoot = fileInfos.find(info => info.type !== 'gif');
+          if (firstRoot) {
+            loadRootFile(firstRoot.name);
+            }
+          } else {
+            // Check for new files
+            const newFiles = files.filter(file => !currentFileList.includes(file));
+            
+            if (newFiles.length > 0) {
+              currentFileList = [...files];
+              
+              // Add new files to list with highlight
+              newFiles.forEach(filename => {
+                const newFileInfo = fileInfos.find(info => info.name === filename);
+                createFileItem(newFileInfo, true);
+              });
+              
+              // Show notification
+              const statusElement = document.getElementById('status');
+              if (statusElement) {
+                statusElement.textContent = `📁 ${newFiles.length} new file(s) detected: ${newFiles.join(', ')}`;
+                statusElement.style.background = '#d4edda';
+                statusElement.style.color = '#155724';
+                setTimeout(() => {
+                  statusElement.textContent = 'Ready';
+                  statusElement.style.background = '#f9f9f9';
+                  statusElement.style.color = '#666';
+                }, 5000);
+              }
+            }
+            
+            // Check for removed files
+            const removedFiles = currentFileList.filter(file => !files.includes(file));
+            if (removedFiles.length > 0) {
+              currentFileList = [...files];
+              removeDeletedFilesFromList(removedFiles);
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error loading file list:', error);
+          if (isInitialLoad) {
+          document.getElementById('status').textContent = 'Error loading file list';
+          }
+        });
+    }
+    
+    function populateFileList(fileInfos) {
+      const fileList = document.getElementById('fileList');
+      fileList.innerHTML = ''; // Clear existing files
+      
+      fileInfos.forEach(fileInfo => {
+        createFileItem(fileInfo);
+      });
+    }
+    
+    // file name -> { run, type, method, module } as chosen in the command builder
+    const METHOD_NAMES = { int: 'IntADC', peak: 'PeakADC', i: 'IntADC', p: 'PeakADC', a: 'Avg', o: 'Overlay',
+                           h: 'Heatmap', all: 'all' };
+    const TYPE_GROUP = { single: 'calo', module: 'calo', heatmap: 'calo', full: 'calo',
+                         hodoscope: 'det', DWC: 'det', AUX: 'aux' };
+    function describeFile(filename) {
+      const base = filename.split('/').pop().replace(/\.(root|gif)$/, '');
+      // channel tag -> single (channels) / module (one module) / full (every module)
+      const selection = (tag) => {
+        const legacy = tag.match(/^((?:SFIL|Bulk)\d*)all$/);
+        if (tag === 'SFILall_Bulkall') return { type: 'full', module: '' };
+        if (legacy) return { type: 'module', module: legacy[1] };
+        const names = splitChannels(tag);
+        const modules = MAPPING_MODULES || [];
+        if (names.length > 1 && names.length === modules.length && names.every(n => modules.includes(n)))
+          return { type: 'full', module: '' };
+        if (names.length === 1 && modules.includes(names[0])) return { type: 'module', module: names[0] };
+        return { type: 'single', module: names.join(' ') };
+      };
+      let m;
+      if ((m = base.match(/^(intADC|peakADC|avg|overlay)_(\d+)_(.+)$/))) {
+        const method = { intADC: 'IntADC', peakADC: 'PeakADC', avg: 'Avg', overlay: 'Overlay' }[m[1]];
+        return { run: `Run ${m[2]}`, method, ...selection(m[3]) };
+      }
+      if ((m = base.match(/^singleWaveform_(\d+)_(.+)$/)))
+        return { run: `Run ${m[1]}`, method: 'Waveform', ...selection(m[2]) };
+      if ((m = base.match(/^waveform_evt(\d+)_(\d+)_(.+)$/))) {
+        const s = selection(m[3]);
+        return { run: `Run ${m[2]}`, method: 'Waveform', type: s.type, module: `evt${m[1]} ${s.module}`.trim() };
+      }
+      if ((m = base.match(/^heatmap_(\d+)_(\w+)$/)))
+        return { run: `Run ${m[1]}`, type: 'heatmap', method: METHOD_NAMES[m[2]] || m[2], module: '' };
+      if ((m = base.match(/^hodoscope_(\d+)_(\w+)$/)))
+        return { run: `Run ${m[1]}`, type: 'hodoscope', method: METHOD_NAMES[m[2]] || m[2], module: '' };
+      if ((m = base.match(/^DWC_Run(\d+)$/))) return { run: `Run ${m[1]}`, type: 'DWC', method: '', module: '' };
+      if ((m = base.match(/^AUX_Run(\d+)$/))) return { run: `Run ${m[1]}`, type: 'AUX', method: '', module: 'DWC, CC' };
+      return { run: '', type: '', method: '', module: base };
+    }
+
+    // "CC1_CC2_SFIL4_xm_y3" -> ["CC1", "CC2", "SFIL4_xm_y3"] with the mapping names (longest match first)
+    function splitChannels(tag) {
+      if (!MAPPING_CHANNELS) return [tag];
+      const known = (name) => MAPPING_CHANNELS.has(name) || MAPPING_MODULES.includes(name);
+      const parts = tag.split('_'), out = [];
+      for (let i = 0; i < parts.length;) {
+        let j = parts.length;
+        while (j > i + 1 && !known(parts.slice(i, j).join('_'))) j--;
+        out.push(parts.slice(i, j).join('_'));
+        i = j;
+      }
+      return out;
+    }
+
+    function fileLabelHtml(filename) {
+      const d = describeFile(filename);
+      const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      return '<span class="file-label">' +
+        (d.run ? `<span class="file-run">${esc(d.run)}</span>` : '') +
+        (d.type ? `<span class="file-pill type ${TYPE_GROUP[d.type] || ''}">${esc(d.type)}</span>` : '') +
+        (d.method ? `<span class="file-pill method">${esc(d.method)}</span>` : '') +
+        (d.module ? `<span class="file-pill target">${esc(d.module)}</span>` : '') +
+        '</span>';
+    }
+
+    function createFileItem(fileInfo, isNew = false) {
+      const fileList = document.getElementById('fileList');
+      const filename = fileInfo.name || fileInfo; // Handle both old string format and new object format
+      
+      // 파일 타입 정보 처리 (이전 버전 호환성)
+      if (typeof fileInfo === 'string') {
+        fileInfo = {
+          name: fileInfo,
+          type: fileInfo.toLowerCase().endsWith('.gif') ? 'gif' : 'root',
+          mtime: Date.now() / 1000,
+          size: 0
+        };
+      }
+      
+      // Create file item container
+      const fileItem = document.createElement('div');
+      fileItem.className = 'file-item';
+      if (isNew) fileItem.classList.add('new-file');
+      fileItem.setAttribute('data-file', filename);
+      
+      // Format file size
+      const formatFileSize = (bytes) => {
+        if (bytes < 1024) return bytes + ' B';
+        else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        else return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      };
+      
+      // Format modification time
+      const formatTime = (timestamp) => {
+        const date = new Date(timestamp * 1000);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
+      };
+      
+      // Create file header (clickable)
+      const fileHeader = document.createElement('div');
+      fileHeader.className = 'file-header';
+      fileHeader.title = filename;  // full path on hover
+
+      const fileInfoText = fileInfo.mtime ? 
+        `<div class="file-metadata">
+          <span class="file-size">${formatFileSize(fileInfo.size)}</span>
+          <span class="file-time">${formatTime(fileInfo.mtime)}</span>
+        </div>` : '';
+      
+      // 파일 타입에 따른 아이콘 결정
+      const fileIcon = fileInfo.type === 'gif' ? '🎬' : '📊';
+      const fileTypeText = fileInfo.type === 'gif' ? 'GIF Animation' : 'ROOT File';
+      
+      fileHeader.innerHTML = `
+        <div class="file-main-info">
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+            <span style="font-size: 16px; flex-shrink: 0;">${fileIcon}</span>
+            ${fileLabelHtml(filename)}
+          </div>
+          <div class="file-meta-row" style="display: flex; align-items: center; gap: 8px; margin-top: 2px; min-width: 0; overflow: hidden;">
+            <span style="font-size: 10px; color: #888; background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">${fileTypeText}</span>
+            ${fileInfoText}
+          </div>
+        </div>
+        <div class="file-controls">
+          <button class="file-refresh-btn" onclick="event.stopPropagation(); refreshRootFile('${filename}')" title="Refresh file contents">🔄</button>
+          <span class="file-dropdown-icon">▶</span>
+        </div>
+      `;
+      
+      // Add click handler for dropdown toggle
+      fileHeader.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // GIF 파일인 경우 직접 열기
+        if (fileInfo.type === 'gif') {
+          createGifWindow(filename);
+        } else {
+          // ROOT 파일인 경우 기존 방식대로 처리
+          toggleFileContents(filename);
+        }
+      });
+      
+      fileItem.appendChild(fileHeader);
+      
+      if (isNew) {
+        // Add new files at the top of the list
+        fileList.insertBefore(fileItem, fileList.firstChild);
+      } else {
+        // Add regular files at the bottom (existing behavior)
+        fileList.appendChild(fileItem);
+      }
+    }
+    
+
+    
+    function removeDeletedFilesFromList(removedFiles) {
+      removedFiles.forEach(filename => {
+        const fileItem = document.querySelector(`[data-file="${filename}"]`);
+        if (fileItem) {
+          // Fade out animation
+          fileItem.style.opacity = '0.3';
+          fileItem.style.transition = 'opacity 0.5s ease';
+          
+          setTimeout(() => {
+            // Remove the file item and its contents
+            const contents = fileItem.nextElementSibling;
+            if (contents && contents.classList.contains('file-contents')) {
+              contents.remove();
+            }
+            fileItem.remove();
+          }, 500);
+        }
+      });
+    }
+    
+    function startFileListAutoRefresh() {
+      // Refresh every 3 seconds
+      fileRefreshInterval = setInterval(() => {
+        loadFileList(false);
+      }, 3000);
+    }
+    
+    function stopFileListAutoRefresh() {
+      if (fileRefreshInterval) {
+        clearInterval(fileRefreshInterval);
+        fileRefreshInterval = null;
+      }
+    }
+    
+    // Wait for JSROOT to be fully loaded
+    function waitForJSROOT() {
+      return new Promise((resolve) => {
+        if (window.JSROOT && window.JSROOT.openFile) {
+          jsrootReady = true;
+          resolve();
+        } else {
+          setTimeout(() => waitForJSROOT().then(resolve), 100);
+        }
+      });
+    }
+
+    // Load file list on page load
+    waitForJSROOT().then(() => {
+      // Initialize all UI components after DOM is ready
+      
+      // Initialize contact number click handlers
+      initializeContactHandlers();
+      
+      // Setup tab switching functionality
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          switchToPanel(tab.getAttribute('data-panel'));
+                  });
+                });
+      
+      // Setup process kill modal event handlers
+      const confirmKillBtn = document.getElementById('confirmKillBtn');
+      const cancelKillBtn = document.getElementById('cancelKillBtn');
+      const processKillModal = document.getElementById('processKillModal');
+      
+      if (confirmKillBtn) confirmKillBtn.addEventListener('click', confirmKillAllMonit);
+      if (cancelKillBtn) cancelKillBtn.addEventListener('click', hideProcessKillModal);
+      
+      // ESC key to close modals
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (processKillModal && processKillModal.style.display === 'flex') {
+            hideProcessKillModal();
+          }
+        }
+      });
+      
+      // Click outside modal to close
+      if (processKillModal) {
+        processKillModal.addEventListener('click', (e) => {
+          if (e.target === processKillModal) {
+            hideProcessKillModal();
+          }
+        });
+      }
+      
+      // Setup command interface event handlers
+      const commandText = document.getElementById('commandText');
+      const killBtn = document.getElementById('killBtn');
+      const killAllMonitBtn = document.getElementById('killAllMonitBtn');
+      
+      if (killBtn) {
+        killBtn.addEventListener('click', () => {
+          killProcess();
+        });
+      }
+
+      if (killAllMonitBtn) {
+        killAllMonitBtn.addEventListener('click', () => {
+          showProcessKillModal();
+        });
+      }
+      
+      if (commandText) {
+        commandText.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const command = commandText.value.trim();
+            if (command) {
+              executeCommandStream(command);
+              commandText.value = '';
+            }
+          }
+        });
+      }
+
+      
+      // Load ROOT files with dropdown structure and start auto-refresh
+      loadFileList(true).then(() => {
+        // Start auto-refresh after initial load
+        startFileListAutoRefresh();
+      });
+      
+      // 페이지 로드시 Kill 버튼 상태 초기화
+      updateKillButtonState();
+      
+      // Setup monit command builder form
+      setupMonitForm();
+      
+      setupSidebarResizer();
+      
+      setupEnlargeInWindow();
+      
+      // 주기적으로 프로세스 상태 확인 (5초마다)
+      setInterval(() => {
+        updateKillButtonState();
+      }, 5000);
+      
+      // Clean up intervals when page is unloaded
+      window.addEventListener('beforeunload', () => {
+        stopFileListAutoRefresh();
+      });
+    });
+    
+    function refreshPlotInWindow(windowId) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      const body = windowData.element.querySelector('.plot-window-body');
+      const currentContent = body.innerHTML;
+      
+      // Only refresh if there's already a plot (not an error message or loading state)
+      if (currentContent.includes('Loading plot...') || 
+          currentContent.includes('Error') || 
+          currentContent.includes('❌') || 
+          currentContent.includes('⚠️') ||
+          currentContent.includes('🔍')) {
+        return; // Don't refresh error states or loading states
+      }
+      
+      // Check if there's actually a JSROOT plot in the body
+      const hasJSROOTContent = body.querySelector('svg') || body.querySelector('canvas') || body.querySelector('.jsroot');
+      if (!hasJSROOTContent) {
+        return; // No JSROOT content to refresh
+      }
+      
+      // Clear and redraw the plot
+      body.innerHTML = '<div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">🔄 Refreshing plot...</div>';
+      
+      setTimeout(() => {
+        windowData.rootFile.readObject(windowData.objectName).then(obj => {
+          if (obj) {
+            body.innerHTML = '';
+            
+            // Try to use the same drawing option that was successful before
+            const titleElement = windowData.element.querySelector('.plot-window-title');
+            const currentTitle = titleElement ? titleElement.textContent : '';
+            let drawOption = 'hist'; // default
+            
+            // Extract drawing option from title if it exists
+            const optionMatch = currentTitle.match(/\((\w+)\)$/);
+            if (optionMatch) {
+              drawOption = optionMatch[1];
+            }
+            
+            JSROOT.draw(body, obj, drawOption).then(() => {
+              // Successfully refreshed
+            }).catch(err => {
+              // If the previous option fails, try default
+              body.innerHTML = '';
+              JSROOT.draw(body, obj, 'hist').catch(() => {
+                body.innerHTML = `<div style="color: orange; text-align: center; padding: 20px; font-size: 12px;">⚠️ Could not refresh plot</div>`;
+              });
+            });
+          }
+        }).catch(err => {
+          body.innerHTML = `<div style="color: orange; text-align: center; padding: 20px; font-size: 12px;">⚠️ Could not refresh plot</div>`;
+        });
+      }, 50);
+    }
+    
+    // Sidebar toggle functionality
+    // Sidebar width : drag #sidebarResizer, remembered per browser
+    function setupSidebarResizer() {
+      const sidebar = document.getElementById('sidebar');
+      const resizer = document.getElementById('sidebarResizer');
+      // narrowest width at which "ROOT File | size | time" of every file still fits on one line
+      const minWidth = () => {
+        let need = 200;
+        const sidebarWidth = sidebar.getBoundingClientRect().width;
+        document.querySelectorAll('#fileList .file-header').forEach(header => {
+          const info = header.querySelector('.file-main-info');
+          const row = header.querySelector('.file-meta-row');
+          if (!info || !row || !info.offsetParent) return;
+          const items = Array.from(row.children);
+          const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+          const rowWidth = items.reduce((sum, el) => sum + el.getBoundingClientRect().width, 0) + gap * Math.max(0, items.length - 1);
+          need = Math.max(need, sidebarWidth - info.getBoundingClientRect().width + rowWidth);
+        });
+        return Math.ceil(need);
+      };
+      const clamp = (w) => Math.max(minWidth(), Math.min(w, window.innerWidth * 0.8));
+      const apply = (w) => document.documentElement.style.setProperty('--sidebar-width', `${clamp(w)}px`);
+
+      try {
+        const saved = parseInt(localStorage.getItem('sidebarWidth'), 10);
+        if (saved) apply(saved);
+      } catch (e) {}
+
+      // a new file (longer size / time text) can raise the minimum
+      new MutationObserver(() => apply(sidebar.getBoundingClientRect().width))
+        .observe(document.getElementById('fileList'), { childList: true });
+
+      resizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        resizer.classList.add('dragging');
+        document.body.classList.add('resizing-sidebar');
+        const left = sidebar.getBoundingClientRect().left;
+        const onMove = (ev) => apply(ev.clientX - left);
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          resizer.classList.remove('dragging');
+          document.body.classList.remove('resizing-sidebar');
+          try { localStorage.setItem('sidebarWidth', Math.round(sidebar.getBoundingClientRect().width)); } catch (e) {}
+          window.dispatchEvent(new Event('resize'));  // let open JSROOT windows redraw
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
+
+    // JSROOT "Enlarge pad" : keep the enlarged pad inside its plot window instead of covering the page.
+    // With settings.CanEnlarge = false JSROOT skips the page overlay and draws the pad over its own canvas.
+    // Exit : double click (JSROOT), Esc, or the "All pads" button added to the window header.
+    function findEnlargedPadPainter(pp, pad) {
+      if (pp.pad === pad) return pp;
+      for (const sub of pp.painters || []) {
+        if (typeof sub.enlargePad !== 'function') continue;
+        const found = findEnlargedPadPainter(sub, pad);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    // [ { windowId, painter of the enlarged pad } ]
+    function enlargedPads() {
+      const result = [];
+      for (const [windowId, windowData] of windows) {
+        const body = windowData.element.querySelector('.plot-window-body');
+        const cp = body && JSROOT.getElementCanvPainter(body);
+        const pad = cp?.getCanvSvg?.()?.property('pad_enlarged');
+        const pp = pad && findEnlargedPadPainter(cp, pad);
+        if (pp) result.push({ windowId, pp });
+      }
+      return result;
+    }
+
+    function updateEnlargeButtons() {
+      const enlarged = new Set(enlargedPads().map(e => e.windowId));
+      for (const [windowId, windowData] of windows) {
+        const controls = windowData.element.querySelector('.plot-window-controls');
+        if (!controls) continue;
+        let btn = controls.querySelector('.plot-window-unenlarge');
+        if (enlarged.has(windowId) && !btn) {
+          btn = document.createElement('button');
+          btn.className = 'plot-window-unenlarge';
+          btn.textContent = '⤺ All pads';
+          btn.title = 'Back to all pads (Esc or double click)';
+          btn.addEventListener('mousedown', (e) => e.stopPropagation());  // not a window drag
+          btn.addEventListener('click', (e) => { e.stopPropagation(); exitEnlargedPad(windowId); });
+          controls.insertBefore(btn, controls.firstChild);
+        } else if (!enlarged.has(windowId) && btn) {
+          btn.remove();
+        }
+      }
+    }
+
+    // windowId given : that window; otherwise the active window first, then any
+    function exitEnlargedPad(windowId) {
+      const list = enlargedPads();
+      const target = list.find(e => e.windowId === (windowId || activeWindow)) || (!windowId && list[0]);
+      if (target) target.pp.enlargePad(null, false, true);
+      else updateEnlargeButtons();  // window was redrawn meanwhile : drop a stale button
+    }
+
+    function setupEnlargeInWindow() {
+      JSROOT.settings.CanEnlarge = false;
+      const original = JSROOT.TPadPainter.prototype.enlargePad;
+      JSROOT.TPadPainter.prototype.enlargePad = function (...args) {
+        const res = original.apply(this, args);
+        Promise.resolve(res).finally(updateEnlargeButtons);
+        return res;
+      };
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') exitEnlargedPad();
+      });
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const toggleBtn = document.getElementById('toggleSidebarBtn');
+      
+      if (sidebar.classList.contains('hidden')) {
+        // Show sidebar
+        sidebar.classList.remove('hidden');
+        toggleBtn.innerHTML = '📂 ◀';
+        toggleBtn.title = 'Hide sidebar';
+      } else {
+        // Hide sidebar
+        sidebar.classList.add('hidden');
+        toggleBtn.innerHTML = '📂 ▶';
+        toggleBtn.title = 'Show sidebar';
+      }
+    }
+    
+    // System Info Functions
+    function updateSystemInfo() {
+      updateCurrentTime();
+      updateMemoryInfo();
+    }
+    
+    function updateCurrentTime() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const months = ['January', 'February', 'March', 'April', 'May', 'June',
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+      const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      
+      const month = months[now.getMonth()];
+      const day = now.getDate();
+      const weekday = weekdays[now.getDay()];
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      
+      const formatted = `${year} ${month} ${day} ${weekday} ${hours}:${minutes}`;
+      document.getElementById('currentTime').textContent = formatted;
+    }
+    
+    function updateMemoryInfo() {
+      if ('memory' in performance) {
+        const memory = performance.memory;
+        const usedMB = (memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
+        const totalMB = (memory.totalJSHeapSize / 1024 / 1024).toFixed(1);
+        document.getElementById('browserMemory').textContent = `Browser: ${usedMB}MB / ${totalMB}MB`;
+      } else {
+        // Fallback for browsers that don't support performance.memory
+        document.getElementById('browserMemory').textContent = 'Browser Memory: N/A';
+      }
+    }
+    
+    async function updateServerInfo() {
+      try {
+        const response = await fetch('/api/system-info');
+        const data = await response.json();
+        
+        if (data.error) {
+          document.getElementById('serverInfo').textContent = 'Server: N/A';
+          return;
+        }
+        
+        let serverText = '';
+        if (data.memory.total !== 'N/A') {
+          serverText = `Server: ${data.memory.used}GB / ${data.memory.total}GB`;
+          if (data.cpu.percent !== 'N/A') {
+            serverText += ` | CPU: ${data.cpu.percent}%`;
+          }
+        } else {
+          serverText = `Server Memory: ${data.memory.used}GB`;
+        }
+        
+        document.getElementById('serverInfo').textContent = serverText;
+      } catch (error) {
+        document.getElementById('serverInfo').textContent = 'Server: Connection Error';
+      }
+    }
+    
+    // Initialize and start updating system info
+    updateSystemInfo();
+    updateServerInfo(); // Initial server info load
+    setInterval(updateSystemInfo, 1000); // Update time and browser memory every second
+    setInterval(updateServerInfo, 5000); // Update server info every 5 seconds
+
+    function loadFileContents(filename) {
+      setActiveFile(filename);
+      currentFileName = filename; // Store current filename for plot refreshing
+
+      // Open ROOT file with cache busting
+      const timestamp = Date.now();
+      const fileUrl = `output/${filename}?t=${timestamp}`;
+      
+      JSROOT.openFile(fileUrl).then(file => {
+        currentFile = file;
+        
+        if (!file) {
+          document.getElementById('status').textContent = `Error: Could not open ${filename}`;
+          return;
+        }
+
+        // Load file contents into sidebar dropdown instead of hierarchy
+        loadFileContentsToSidebar(filename, file);
+        
+        document.getElementById('status').textContent = `${filename} loaded successfully (updated: ${new Date().toLocaleTimeString()})`;
+      }).catch(error => {
+        console.error('Error opening file:', error);
+        document.getElementById('status').textContent = `Error: ${error}`;
+      });
+    }
+
+    // Function to refresh a plot window with updated data
+    function refreshPlotWindow(windowId) {
+      const windowData = windows.get(windowId);
+      if (!windowData) return;
+      
+      loadPlotInWindow(windowId, windowData.objectName, windowData.rootFile, true);
+    }
+    
+    // Copy phone number to clipboard
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text.replace('📞 ', '')).then(() => {
+        // Show notification
+        const statusElement = document.getElementById('status');
+        const originalText = statusElement.textContent;
+        const originalBg = statusElement.style.background;
+        const originalColor = statusElement.style.color;
+        
+        statusElement.textContent = `📋 Copied: ${text}`;
+        statusElement.style.background = '#d4edda';
+        statusElement.style.color = '#155724';
+        
+        setTimeout(() => {
+          statusElement.textContent = originalText;
+          statusElement.style.background = originalBg;
+          statusElement.style.color = originalColor;
+        }, 3000);
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+    }
+    
+    // Initialize contact number click handlers
+    function initializeContactHandlers() {
+      const contactNumbers = document.querySelectorAll('.contact-numbers span');
+      contactNumbers.forEach(span => {
+        span.addEventListener('click', () => {
+          copyToClipboard(span.textContent);
+        });
+      });
+    }
+    
+    // Store current filename for file operations
+    let currentFileName = null;
+
+    // Function to refresh a specific ROOT file
+    function refreshRootFile(filename) {
+      if (filename.toLowerCase().endsWith('.gif')) {
+        createGifWindow(filename);
+        return;
+      }
+      // Find and clear existing file contents
+      const fileItem = document.querySelector(`[data-file="${filename}"]`);
+      if (fileItem) {
+        const contentsDiv = fileItem.nextElementSibling;
+        if (contentsDiv && contentsDiv.classList.contains('file-contents')) {
+          contentsDiv.remove();
+        }
+      }
+      
+      // Reload the file with cache busting
+      currentFileName = filename;
+      const timestamp = Date.now();
+      const fileUrl = `output/${filename}?t=${timestamp}`;
+      
+      document.getElementById('status').textContent = `Refreshing ${filename}...`;
+      
+      JSROOT.openFile(fileUrl).then(file => {
+        if (!file) {
+          document.getElementById('status').textContent = `Error: Could not refresh ${filename}`;
+          return;
+        }
+        
+        currentFile = file;
+        loadFileContentsToSidebar(filename, file);
+        document.getElementById('status').textContent = `${filename} refreshed successfully (${new Date().toLocaleTimeString()})`;
+        
+        // Also refresh any open plot windows from this file
+        windows.forEach((windowData, windowId) => {
+          if (windowData.filename === filename) {
+            windowData.rootFile = file;
+            windows.set(windowId, windowData);
+            loadPlotInWindow(windowId, windowData.objectName, file, true);
+          }
+        });
+        
+      }).catch(error => {
+        console.error('Error refreshing file:', error);
+        document.getElementById('status').textContent = `Error refreshing ${filename}: ${error}`;
+      });
+    }
+  </script>
+</body>
+</html> 
