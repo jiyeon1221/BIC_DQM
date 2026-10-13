@@ -42,34 +42,56 @@ The shared dataset is available at the path configured by `envset.sh`. Readers e
 
 Channel names and module assignments are defined in `mapping/mapping_CERN2026.h`. Each analysis needs the input files for the selected channels or detectors.
 
-## 3. Compile the analysis programs
+## 3. Compile an analysis program
 
-After loading the environment, compile every program:
+Load the environment, then change into `analysis/`:
 
 ```bash
+source web/envset.sh
 cd analysis
-bash ./compile.sh *.C
+```
+
+Compile the program you want to use. Run each command separately:
+
+```bash
+./compile.sh draw_peakADC
+```
+
+For another program, replace the name:
+
+```bash
+./compile.sh draw_avg
+```
+
+```bash
+./compile.sh draw_heatmap
+```
+
+```bash
+./compile.sh DWC
+```
+
+```bash
+./compile.sh hodoscope
+```
+
+Names can be supplied with or without the `.C` extension. Each command creates the corresponding executable in `analysis/`, such as `draw_peakADC`. Recompile the program after changing its source, shared headers, or the mapping.
+
+Run the script without arguments to display the available program names:
+
+```bash
+./compile.sh
+```
+
+This prints usage and exits with status 1. Return to the repository root before starting the web server:
+
+```bash
 cd ..
 ```
 
-To compile one program or a selection:
-
-```bash
-bash analysis/compile.sh draw_peakADC
-bash analysis/compile.sh draw_avg draw_heatmap DWC hodoscope
-```
-
-Names can be supplied with or without the `.C` extension. The script changes into `analysis/` automatically and creates executables there, such as `analysis/draw_peakADC`. Run it with no arguments to display the available source names:
-
-```bash
-bash analysis/compile.sh
-```
-
-The no-argument invocation prints usage and exits with status 1. Recompile affected programs after changing analysis sources, headers, or the mapping.
-
 ## 4. Start the web interface
 
-For first use, source the environment script and compile all programs as described above. Then start the server:
+For first use, source the environment script and compile the programs you want to use, one at a time, as described above. Then start the server:
 
 ```bash
 python3 web/serve_rootfiles.py --host 127.0.0.1 --port 8000
@@ -178,7 +200,7 @@ Compiled executables, build artifacts, Python caches, and generated output are e
 | `root-config: command not found` or ROOT headers cannot be found | Run `source web/envset.sh` from the repository root and confirm `root-config --version` works. |
 | `g++: command not found` | Confirm `command -v g++` works in your server session. |
 | ROOT shared libraries cannot be loaded | Source `web/envset.sh` in the terminal; for browser commands, restart the server to reload the shared environment. |
-| An analysis executable is missing | Compile it with `bash analysis/compile.sh <name>`, or compile all sources. |
+| An analysis executable is missing | From `analysis/`, run `./compile.sh <name>` for the missing program. |
 | `[DAQ] cannot open ...` | Source `web/envset.sh` and check that the requested run and MID exist in the shared dataset and are readable. |
 | No output files appear in the browser | Run an analysis, inspect its command output, and check that `DQM_OUTPUT_PATH` is unset or points to the repository's `output/`. |
 | `Address already in use` | Stop the previous server or choose another port with `--port`. |
