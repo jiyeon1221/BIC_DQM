@@ -1,0 +1,33 @@
+# Compiled analysis executables
+/analysis/DWC
+/analysis/DWC_calibration
+/analysis/draw_AUX
+/analysis/draw_avg
+/analysis/draw_heatmap
+/analysis/draw_intADC
+/analysis/draw_overlay
+/analysis/draw_peakADC
+/analysis/draw_singleWaveform
+/analysis/draw_waveform
+/analysis/hodoscope
+
+# Build products and ROOT compilation cache
+/build/
+/cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+*.o
+*.obj
+*.so
+*.a
+*.pcm
+*.d
+*_ACLiC_dict*
+
+# Generated analysis output
+/output/
+*.root
+
+# Python cache
+__pycache__/
+*.py[cod]
