@@ -18,40 +18,21 @@ cd BIC_DQM
 
 Run the following commands from the repository root unless a section explicitly changes directory.
 
-## 2. Configure the environment
+## 2. Load the shared server environment
 
-Edit `web/envset.sh` to match your machine:
-
-```bash
-#!/bin/bash
-source /path/to/root/bin/thisroot.sh
-export DQM_DATA_PATH=/path/to/binary
-```
-
-Replace both example paths with actual paths. The current defaults in the repository are:
-
-| Setting | Current value |
-| --- | --- |
-| ROOT setup script | `/home/kobic/Software/Install/root-v6-32-10/bin/thisroot.sh` |
-| Raw data directory | `/home/kobic/26CERNData/binary` |
-
-Load the environment in the terminal before compiling or running an analysis:
+All users work on the same server with the same ROOT installation and dataset. From the repository root, load the existing environment script:
 
 ```bash
 source web/envset.sh
-root-config --version
-command -v g++
-python3 --version
-ls -ld "$DQM_DATA_PATH"
 ```
 
-Use `source`, so the environment remains available in the current terminal. Repeat it when opening a new terminal.
+If you are already in `web/`, run `source envset.sh`. Repeat this in each new terminal before compiling or running an analysis. The script already sets the ROOT environment and shared data path.
 
-The web server also sources `web/envset.sh` when it starts. Set your paths in that file rather than relying only on terminal exports, and restart the server after changing it.
+The web server sources `envset.sh` automatically when it starts.
 
 ### Input data
 
-Set `DQM_DATA_PATH` to the directory containing the data files themselves. Readers expect these names, with a five-digit run number:
+The shared dataset is available at the path configured by `envset.sh`. Readers expect these names, with a five-digit run number:
 
 | Reader | Filename pattern | Example for run 790 |
 | --- | --- | --- |
@@ -88,7 +69,7 @@ The no-argument invocation prints usage and exits with status 1. Recompile affec
 
 ## 4. Start the web interface
 
-For first use, configure the environment and compile all programs as described above. Then start the server:
+For first use, source the environment script and compile all programs as described above. Then start the server:
 
 ```bash
 python3 web/serve_rootfiles.py --host 127.0.0.1 --port 8000
@@ -194,11 +175,11 @@ Compiled executables, build artifacts, Python caches, and generated output are e
 
 | Symptom | What to check |
 | --- | --- |
-| `root-config: command not found` or ROOT headers cannot be found | Correct the ROOT setup path in `web/envset.sh`, source it, and confirm `root-config --version` works. |
-| `g++: command not found` | Install or load the C++ compiler before compiling. |
-| ROOT shared libraries cannot be loaded | Source `web/envset.sh` in the terminal; for browser commands, check the same file and restart the server. |
+| `root-config: command not found` or ROOT headers cannot be found | Run `source web/envset.sh` from the repository root and confirm `root-config --version` works. |
+| `g++: command not found` | Confirm `command -v g++` works in your server session. |
+| ROOT shared libraries cannot be loaded | Source `web/envset.sh` in the terminal; for browser commands, restart the server to reload the shared environment. |
 | An analysis executable is missing | Compile it with `bash analysis/compile.sh <name>`, or compile all sources. |
-| `[DAQ] cannot open ...` | Check `DQM_DATA_PATH`, the five-digit run filename, the required MID, and file read permissions. |
+| `[DAQ] cannot open ...` | Source `web/envset.sh` and check that the requested run and MID exist in the shared dataset and are readable. |
 | No output files appear in the browser | Run an analysis, inspect its command output, and check that `DQM_OUTPUT_PATH` is unset or points to the repository's `output/`. |
 | `Address already in use` | Stop the previous server or choose another port with `--port`. |
 | DWC positions are uncalibrated | Generate or provide `DWC_calibration_constants.txt` in `analysis/`, or pass a constants file explicitly. |
