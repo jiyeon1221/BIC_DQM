@@ -10,11 +10,14 @@
 #include <TFile.h>
 #include <TGraphErrors.h>
 #include <TH1F.h>
+#include <TH2F.h>
+#include <TPaveStats.h>
 #include <TString.h>
 #include <TStyle.h>
 #include <TSystem.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -194,7 +197,8 @@ inline double DWC_DeltaUD(const double t[4]) { return t[2] - t[3]; }
 
 namespace {
 
-bool DWC_FillDeltas(const char* inPath, int RunNo, int mid, long long nEvt, TH1F* hLR, TH1F* hUD)
+bool DWC_FillDeltas(const char* inPath, int RunNo, int mid, long long nEvt, TH1F* hLR, TH1F* hUD,
+                    std::vector<std::array<double, 2>>* pairedDeltas = nullptr)
 {
 	DWCReader reader;
 	if (!reader.Open(inPath, RunNo, mid)) return false;
@@ -204,6 +208,8 @@ bool DWC_FillDeltas(const char* inPath, int RunNo, int mid, long long nEvt, TH1F
 	while ((nEvt < 0 || reader.NRead() < nEvt) && reader.Next(t)) {
 		if (!std::isnan(t[0]) && !std::isnan(t[1])) hLR->Fill(DWC_DeltaLR(t));
 		if (!std::isnan(t[2]) && !std::isnan(t[3])) hUD->Fill(DWC_DeltaUD(t));
+		if (pairedDeltas && std::isfinite(DWC_DeltaLR(t)) && std::isfinite(DWC_DeltaUD(t)))
+			pairedDeltas->push_back({DWC_DeltaLR(t), DWC_DeltaUD(t)});
 		progress.Update(reader.NRead());
 	}
 	progress.Finish();
@@ -250,6 +256,32 @@ bool DWC_LinearFit(TGraphErrors* g, TF1* line)
 	       std::isfinite(line->GetParameter(0)) && std::isfinite(line->GetParameter(1));
 }
 
+void DWC_DrawCalibrationMap(TH2F* h)
+{
+	gPad->SetLeftMargin(0.16);
+	gPad->SetRightMargin(0.05);
+	gPad->SetBottomMargin(0.13);
+	gPad->SetTopMargin(0.11);
+	h->GetXaxis()->SetTitleSize(0.04);
+	h->GetYaxis()->SetTitleSize(0.04);
+	h->GetXaxis()->SetLabelSize(0.035);
+	h->GetYaxis()->SetLabelSize(0.035);
+	h->GetYaxis()->SetTitleOffset(1.5);
+	h->Draw("COL");
+	gPad->Update();
+	if (auto* title = dynamic_cast<TPaveText*>(gPad->GetListOfPrimitives()->FindObject("title"))) {
+		title->SetX1NDC(0.10); title->SetX2NDC(0.98);
+		title->SetY1NDC(0.945); title->SetY2NDC(0.995);
+		title->SetTextSize(0.032);
+	}
+	if (auto* stats = dynamic_cast<TPaveStats*>(h->GetListOfFunctions()->FindObject("stats"))) {
+		stats->SetX1NDC(0.72); stats->SetX2NDC(0.97);
+		stats->SetY1NDC(0.70); stats->SetY2NDC(0.94);
+		stats->SetTextSize(0.020);
+	}
+	gPad->Modified();
+}
+
 } 
 
 void DWC_calibration(
@@ -275,6 +307,7 @@ void DWC_calibration(
 
 	double dt[4][3] = {{0}}, dtErr[4][3] = {{0}};
 	TH1F*  hDelta[4][3] = {{nullptr}};
+	std::vector<std::array<double, 2>> pairedDeltas[2][3];
 
 	TCanvas* cDelta = new TCanvas("cDWCCalibDelta", "DWC calibration #Deltat", 1500, 1000);
 	cDelta->Divide(3, 4);
@@ -294,7 +327,10 @@ void DWC_calibration(
 			hDelta[2 * chamber][p]     = hLR;
 			hDelta[2 * chamber + 1][p] = hUD;
 
-			if (!DWC_FillDeltas(inPath, run, mid, nEvt, hLR, hUD)) { fout->Close(); return; }
+			if (!DWC_FillDeltas(inPath, run, mid, nEvt, hLR, hUD, &pairedDeltas[chamber][p])) {
+				fout->Close();
+				return;
+			}
 			for (int local = 0; local < 2; ++local) {
 				const int a = 2 * chamber + local;
 				std::cout << Form("[DWC] fitting %s peak, Run %d (%s)\n", kDWCAxisKey[a], run, ptName[p]) << std::flush;
@@ -339,6 +375,51 @@ void DWC_calibration(
 		g->Write();
 	}
 	cFit->Update();
+
+	// Compare the same paired events before and after calibration, without rereading input files.
+	gStyle->SetOptStat(1111);
+	const int mapBins = 480;
+	const double rawRange = 120.;
+	const double positionRange = std::max(120., 1.5 * std::abs(posMM));
+	for (int chamber = 0; chamber < 2; ++chamber) {
+		const int dwc = chamber + 1;
+		TCanvas* cBefore = new TCanvas(Form("cDWCCalibBefore_DWC%d", dwc),
+		                               Form("DWC%d before calibration", dwc), 1800, 650);
+		TCanvas* cAfter = new TCanvas(Form("cDWCCalibAfter_DWC%d", dwc),
+		                              Form("DWC%d after calibration", dwc), 1800, 650);
+		cBefore->Divide(3, 1);
+		cAfter->Divide(3, 1);
+		for (int p = 0; p < 3; ++p) {
+			const int run = runs[chamber][p];
+			TH2F* before = new TH2F(Form("h_DWC%d_before_%s_Run%d", dwc, ptName[p], run),
+			                        Form("DWC%d before calibration: %s, Run %d;L-R [sample];U-D [sample];Events",
+			                             dwc, ptName[p], run),
+			                        mapBins, -rawRange, rawRange, mapBins, -rawRange, rawRange);
+			TH2F* after = new TH2F(Form("h_DWC%d_after_%s_Run%d", dwc, ptName[p], run),
+			                       Form("DWC%d after calibration: %s, Run %d;X [mm];Y [mm];Events",
+			                            dwc, ptName[p], run),
+			                       mapBins, -positionRange, positionRange, mapBins, -positionRange, positionRange);
+			before->SetDirectory(nullptr);
+			after->SetDirectory(nullptr);
+			for (const auto& delta : pairedDeltas[chamber][p]) {
+				before->Fill(delta[0] / DWCReader::dtNs, delta[1] / DWCReader::dtNs);
+				after->Fill(calib.axis[2 * chamber].Position(delta[0]),
+				            calib.axis[2 * chamber + 1].Position(delta[1]));
+			}
+			cBefore->cd(p + 1);
+			DWC_DrawCalibrationMap(before);
+			cAfter->cd(p + 1);
+			DWC_DrawCalibrationMap(after);
+			fout->cd();
+			before->Write();
+			after->Write();
+		}
+		cBefore->Update();
+		cAfter->Update();
+		fout->cd();
+		cBefore->Write();
+		cAfter->Write();
+	}
 
 	fout->cd();
 	for (int a = 0; a < 4; ++a)

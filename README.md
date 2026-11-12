@@ -160,6 +160,8 @@ Replace the placeholders with the actual calibration runs. This creates `DWC_cal
 ./draw_AUX 790 -1 /path/to/DWC_calibration_constants.txt
 ```
 
+The calibration ROOT file also includes before/after 2D position comparisons for DWC1 and DWC2 (`cDWCCalibBefore_DWC1`, `cDWCCalibAfter_DWC1`, and the corresponding DWC2 canvases). Each canvas shows LU, C, and RD runs from left to right. Before-calibration axes are L-R and U-D in samples (2 ns/sample); after-calibration axes are X and Y in mm. Both plots use the same events with valid times on all four channels, and preserve the existing calibration sign convention.
+
 
 
 ## Output and repository layout
