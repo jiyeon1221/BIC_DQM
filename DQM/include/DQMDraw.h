@@ -24,9 +24,9 @@ const unsigned int kDQMTriggerLag = 1000;
 
 const int kDQMPadsPerCanvas = 33;
 
-// Match the fixed spectra used by TB_analysis/KEK202512 and KEK202605.
-const HistAxis kDQMIntADCAxis{840, -18000., 350000.};
-const HistAxis kDQMPeakADCAxis{4096, 0., 4096.};
+// Fixed ADC spectrum axes shared by channel plots and hodoscope grids.
+const HistAxis kDQMIntADCAxis{2000, -1000., 100000.};
+const HistAxis kDQMPeakADCAxis{1000, -100., 5000.};
 
 inline std::array<double, 2> DQM_ADCDisplayRange(const DAQInfo& info, double maximum)
 {
