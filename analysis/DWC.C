@@ -56,6 +56,9 @@ void DWC(
 	bool ok[2];
 	for (int d = 0; d < 2; ++d) ok[d] = reader[d].Open(inPath, RunNo, 3 + d);
 	if (!ok[0] && !ok[1]) return;
+	const long long available = std::max(ok[0] ? reader[0].NTotal() : 0, ok[1] ? reader[1].NTotal() : 0);
+	const long long target = nEvt < 0 ? available : std::min(nEvt, available);
+	DQMProgress progress(Form("Run %d DWC reading", RunNo), target);
 
 	long long nEvent = 0;
 	while (nEvt < 0 || nEvent < nEvt) {
@@ -87,7 +90,9 @@ void DWC(
 		if (!std::isnan(x[0]) && !std::isnan(x[1])) hXcorr->Fill(x[0], x[1]);
 		if (!std::isnan(y[0]) && !std::isnan(y[1])) hYcorr->Fill(y[0], y[1]);
 		++nEvent;
+		progress.Update(nEvent);
 	}
+	progress.Finish();
 	for (int d = 0; d < 2; ++d)
 		if (ok[d])
 			std::cout << Form("[DWC] DWC%d : %lld events read, %lld bad headers\n",

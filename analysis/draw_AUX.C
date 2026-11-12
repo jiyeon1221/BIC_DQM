@@ -34,6 +34,9 @@ void draw_AUX(int RunNo, long long nEvt = -1,
 	DWCReader reader[2];
 	bool ok[2];
 	for (int d = 0; d < 2; ++d) ok[d] = reader[d].Open(inPath, RunNo, 3 + d);
+	const long long available = std::max(ok[0] ? reader[0].NTotal() : 0, ok[1] ? reader[1].NTotal() : 0);
+	const long long target = nEvt < 0 ? available : std::min(nEvt, available);
+	DQMProgress progress(Form("Run %d AUX DWC reading", RunNo), target);
 	long long nEvent = 0;
 	while ((ok[0] || ok[1]) && (nEvt < 0 || nEvent < nEvt)) {
 		double t[2][4];
@@ -51,7 +54,9 @@ void draw_AUX(int RunNo, long long nEvt = -1,
 		if (!std::isnan(x[0]) && !std::isnan(x[1])) hXcorr->Fill(x[0], x[1]);
 		if (!std::isnan(y[0]) && !std::isnan(y[1])) hYcorr->Fill(y[0], y[1]);
 		++nEvent;
+		progress.Update(nEvent);
 	}
+	progress.Finish();
 	for (int d = 0; d < 2; ++d)
 		if (ok[d])
 			std::cout << Form("[AUX] DWC%d : %lld events read, %lld bad headers\n",

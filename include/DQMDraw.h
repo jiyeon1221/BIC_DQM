@@ -54,13 +54,22 @@ inline void DQM_Loop(const DQMSelection& sel, const char* inPath, int RunNo,
 
 		for (int m : file.second) {
 			if (!reader->Open(inPath, RunNo, m)) continue;
+			const std::string label = Form("Run %d %s MID %d", RunNo, file.first.c_str(), m);
+			const long long total = reader->CountEvents(label);
+			std::cout << "[DQM] " << label << " : total file events = " << total
+			          << ", first event = " << firstEvt;
+			if (nEvt >= 0) std::cout << ", requested event span = " << nEvt;
+			else std::cout << ", requested = all remaining events";
+			std::cout << std::endl;
+			DQMProgress progress(label + " reading", total);
 
 			std::vector<ChannelWaveform> unit;
 			bool haveBase = false;
 			unsigned int base = 0;
 			long long nWave = 0, minEvt = -1, maxEvt = -1;
+			bool rangeComplete = nEvt == 0;
 
-			while (reader->Next(unit)) {
+			while (nEvt != 0 && reader->Next(unit)) {
 				bool pastRange = false;
 				for (const auto& w : unit) {
 					if (!haveBase) { base = w.trigger; haveBase = true; }
@@ -78,8 +87,10 @@ inline void DQM_Loop(const DQMSelection& sel, const char* inPath, int RunNo,
 					if (minEvt < 0 || evt < minEvt) minEvt = evt;
 					if (evt > maxEvt) maxEvt = evt;
 				}
-				if (pastRange) break;
+				progress.Update(reader->NReadEvents());
+				if (pastRange) { rangeComplete = true; break; }
 			}
+			progress.Finish(rangeComplete ? "requested range complete" : "read complete");
 			std::cout << Form("[DQM] %s : %lld channel waveforms, events %lld - %lld, %lld bad units\n",
 			                  reader->FileName().Data(), nWave, minEvt, maxEvt, reader->NBad());
 			reader->Close();

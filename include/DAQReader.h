@@ -1,13 +1,18 @@
 #ifndef DAQ_READER_H
 #define DAQ_READER_H
 
+#include "DQMProgress.h"
+
 #include <TString.h>
 
 #include <algorithm>
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <unordered_set>
 #include <vector>
+
+#include <sys/stat.h>
 
 struct ChannelWaveform {
 	int mid = 0;
@@ -57,6 +62,7 @@ public:
 	virtual bool Open(const char* inPath, int RunNo, int mid) = 0;
 
 	virtual bool Next(std::vector<ChannelWaveform>& out) = 0;
+	virtual long long CountEvents(const std::string& label) = 0;
 
 	void Close()
 	{
@@ -65,6 +71,7 @@ public:
 	}
 	const TString& FileName() const { return fName; }
 	long long NBad() const { return fNBad; }
+	long long NReadEvents() const { return fNReadEvents; }
 
 protected:
 	bool OpenFile(const TString& name, int mid)
@@ -73,11 +80,17 @@ protected:
 		fName = name;
 		fMid  = mid;
 		fNBad = 0;
+		fNReadEvents = 0;
+		fSeenTriggers.clear();
+		fFileBytes = -1;
+		std::cout << "[DAQ] opening " << fName << std::endl;
 		fFile = fopen(fName.Data(), "rb");
 		if (!fFile) {
 			std::cerr << "[DAQ] cannot open " << fName << std::endl;
 			return false;
 		}
+		struct stat st;
+		if (fstat(fileno(fFile), &st) == 0) fFileBytes = st.st_size;
 		return true;
 	}
 
@@ -85,11 +98,38 @@ protected:
 	TString   fName;
 	int       fMid  = 0;
 	long long fNBad = 0;
+	long long fNReadEvents = 0, fFileBytes = -1;
+	std::unordered_set<unsigned int> fSeenTriggers;
 };
 
 class PacketReader : public DAQReader {
 public:
 	bool Next(std::vector<ChannelWaveform>& out) override
+	{
+		return ReadPacket(out, true);
+	}
+
+	long long CountEvents(const std::string& label) override
+	{
+		if (!fFile) return 0;
+		const long position = ftell(fFile);
+		rewind(fFile);
+		std::unordered_set<unsigned int> triggers;
+		std::vector<ChannelWaveform> unit;
+		DQMProgress progress(label + " counting headers", fFileBytes, "bytes");
+		while (ReadPacket(unit, false)) {
+			triggers.insert(unit.front().trigger);
+			progress.Update(ftell(fFile));
+		}
+		progress.Update(ftell(fFile));
+		progress.Finish();
+		clearerr(fFile);
+		fseek(fFile, position, SEEK_SET);
+		return static_cast<long long>(triggers.size());
+	}
+
+private:
+	bool ReadPacket(std::vector<ChannelWaveform>& out, bool samples)
 	{
 		out.clear();
 		if (!fFile) return false;
@@ -99,24 +139,35 @@ public:
 			if (fread(hdr, 1, 32, fFile) != 32) return false;
 			const int len = (int)DAQ_LittleEndian(hdr, 4);
 			if (len <= 32 || len > kMaxPacket) {
-				if (fNBad++ < 10)
+				if (samples && fNBad++ < 10)
 					std::cerr << "[DAQ] " << fName << ": bad packet length " << len
 					          << " at byte " << pos << ", resyncing\n";
 				fseek(fFile, pos + 1, SEEK_SET);
 				continue;
 			}
-			fBody.resize(len - 32);
-			if (fread(fBody.data(), 1, fBody.size(), fFile) != fBody.size()) return false;
+			if (samples) {
+				fBody.resize(len - 32);
+				if (fread(fBody.data(), 1, fBody.size(), fFile) != fBody.size()) return false;
+			} else {
+				if (fFileBytes >= 0 && pos + len > fFileBytes) {
+					fseek(fFile, 0, SEEK_END);
+					return false;
+				}
+				if (fseek(fFile, len - 32, SEEK_CUR) != 0) return false;
+			}
 
 			ChannelWaveform w;
 			w.mid     = fMid;
 			w.ch      = hdr[16];
 			w.trigger = DAQ_LittleEndian(hdr + 7, 4);
-			const int stride = SampleStride();
-			const int n = (int)fBody.size() / stride;
-			w.adc.resize(n);
-			for (int i = 0; i < n; ++i)
-				w.adc[i] = (short)(fBody[stride * i] | (fBody[stride * i + 1] << 8));
+			if (samples) {
+				if (fSeenTriggers.insert(w.trigger).second) ++fNReadEvents;
+				const int stride = SampleStride();
+				const int n = (int)fBody.size() / stride;
+				w.adc.resize(n);
+				for (int i = 0; i < n; ++i)
+					w.adc[i] = (short)(fBody[stride * i] | (fBody[stride * i + 1] << 8));
+			}
 			out.push_back(std::move(w));
 			return true;
 		}

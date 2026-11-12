@@ -86,6 +86,7 @@ void draw_singleWaveform(int RunNo, const char* channels, long long firstEvt = 0
 	}
 
 	int nFrames = 0;
+	DQMProgress progress(Form("Run %d waveform GIF rendering", RunNo), events.size(), "frames");
 	for (const auto& e : events) {
 		for (size_t i = 0; i < order.size(); ++i) {
 			hists[i]->Reset("ICES");
@@ -104,7 +105,9 @@ void draw_singleWaveform(int RunNo, const char* channels, long long firstEvt = 0
 		c->Update();
 		++nFrames;
 		c->Print(partial + (nFrames == (int)events.size() ? "++" : "+"));
+		progress.Update(nFrames);
 	}
+	progress.Finish();
 	gSystem->Unlink(gif);
 	gSystem->Rename(partial, gif);
 	std::cout << Form("[DQM] saved %s (%d events, %lld - %lld)\n", gif.Data(), nFrames,

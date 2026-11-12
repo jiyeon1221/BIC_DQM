@@ -3,6 +3,8 @@
 #ifndef DWC_CALIBRATION_C
 #define DWC_CALIBRATION_C
 
+#include "../include/DQMProgress.h"
+
 #include <TCanvas.h>
 #include <TF1.h>
 #include <TFile.h>
@@ -95,8 +97,12 @@ public:
 
 	bool Open(const char* inPath, int RunNo, int mid)
 	{
+		if (fIn.is_open()) fIn.close();
+		fIn.clear();
+		fNTotal = 0;
 		fMid  = mid;
 		fName = Form("%s/Run_%05d_FADC_%d.dat", inPath, RunNo, mid);
+		std::cout << "[DWC] opening " << fName << std::endl;
 		fIn.open(fName.Data(), std::ios::binary);
 		if (!fIn.is_open()) {
 			std::cerr << "[DWC] cannot open " << fName << std::endl;
@@ -105,7 +111,12 @@ public:
 		fRaw.assign(DLen * nCh, 0);
 		fWF.assign(nADC, 0.f);
 		fNRead = fNBad = 0;
-		std::cout << "[DWC] opened " << fName << std::endl;
+		fIn.seekg(0, std::ios::end);
+		const std::streamoff bytes = fIn.tellg();
+		fNTotal = bytes >= 0 ? bytes / (DLen * nCh) : -1;
+		fIn.clear();
+		fIn.seekg(0);
+		std::cout << "[DWC] opened " << fName << " (" << fNTotal << " events)" << std::endl;
 		return true;
 	}
 
@@ -134,6 +145,7 @@ public:
 
 	long long NRead() const { return fNRead; }
 	long long NBad()  const { return fNBad; }
+	long long NTotal() const { return fNTotal; }
 
 private:
 	unsigned char Byte(int ch, int k) const { return fRaw[ch + nCh * k]; }
@@ -170,6 +182,7 @@ private:
 	std::vector<unsigned char> fRaw;
 	std::vector<float>         fWF;
 	long long                  fNRead = 0, fNBad = 0;
+	long long                  fNTotal = 0;
 };
 
 const int    kDWCDeltaBins  = 4000;
@@ -185,11 +198,15 @@ bool DWC_FillDeltas(const char* inPath, int RunNo, int mid, long long nEvt, TH1F
 {
 	DWCReader reader;
 	if (!reader.Open(inPath, RunNo, mid)) return false;
+	const long long target = nEvt < 0 ? reader.NTotal() : std::min(nEvt, reader.NTotal());
+	DQMProgress progress(Form("Run %d DWC MID %d reading", RunNo, mid), target);
 	double t[4];
 	while ((nEvt < 0 || reader.NRead() < nEvt) && reader.Next(t)) {
 		if (!std::isnan(t[0]) && !std::isnan(t[1])) hLR->Fill(DWC_DeltaLR(t));
 		if (!std::isnan(t[2]) && !std::isnan(t[3])) hUD->Fill(DWC_DeltaUD(t));
+		progress.Update(reader.NRead());
 	}
+	progress.Finish();
 	std::cout << Form("[DWC] Run %d MID %d : %lld events read, %lld bad headers\n",
 	                  RunNo, mid, reader.NRead(), reader.NBad());
 	return true;
@@ -214,6 +231,23 @@ bool DWC_PeakFit(TH1F* h, double& mean, double& error)
 	error = g->GetParError(1);
 	if (!(error > 0.0) || !std::isfinite(error)) error = 1.0;
 	return true;
+}
+
+bool DWC_LinearFit(TGraphErrors* g, TF1* line)
+{
+	if (g->GetN() != 3) return false;
+	const double* dt = g->GetX();
+	const double* position = g->GetY();
+	const double span = dt[2] - dt[0];
+	if (!std::isfinite(span) || span == 0.0) return false;
+
+	// X-only errors require a nonzero starting slope for the effective variance.
+	const double slope = (position[2] - position[0]) / span;
+	const double offset = position[1] - slope * dt[1];
+	if (!std::isfinite(slope) || slope == 0.0 || !std::isfinite(offset)) return false;
+	line->SetParameters(offset, slope);
+	return g->Fit(line, "Q") == 0 &&
+	       std::isfinite(line->GetParameter(0)) && std::isfinite(line->GetParameter(1));
 }
 
 } 
@@ -263,6 +297,7 @@ void DWC_calibration(
 			if (!DWC_FillDeltas(inPath, run, mid, nEvt, hLR, hUD)) { fout->Close(); return; }
 			for (int local = 0; local < 2; ++local) {
 				const int a = 2 * chamber + local;
+				std::cout << Form("[DWC] fitting %s peak, Run %d (%s)\n", kDWCAxisKey[a], run, ptName[p]) << std::flush;
 				if (!DWC_PeakFit(hDelta[a][p], dt[a][p], dtErr[a][p])) { fout->Close(); return; }
 			}
 		}
@@ -284,12 +319,13 @@ void DWC_calibration(
 
 	for (int a = 0; a < 4; ++a) {
 		double posErr[3] = {0, 0, 0};
+		std::cout << "[DWC] fitting calibration line for " << kDWCAxisKey[a] << std::endl;
 		TGraphErrors* g = new TGraphErrors(3, dt[a], position, dtErr[a], posErr);
 		g->SetName(Form("g_%s", kDWCAxisKey[a]));
 		g->SetTitle(axisTitle[a]);
 		g->SetMarkerStyle(20);
 		TF1* line = new TF1(Form("fit_%s", kDWCAxisKey[a]), "pol1");
-		if (g->Fit(line, "Q") != 0) {
+		if (!DWC_LinearFit(g, line)) {
 			std::cerr << "[DWC] linear fit failed for " << kDWCAxisKey[a] << std::endl;
 			fout->Close();
 			return;

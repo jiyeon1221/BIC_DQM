@@ -49,6 +49,7 @@ public:
 		out.clear();
 		if (!fFile) return false;
 		if (fread(fRaw.data(), 1, fRaw.size(), fFile) != fRaw.size()) return false;
+		++fNReadEvents;
 
 		const int nADC = NSamples();
 		for (int ch = 0; ch < nCh; ++ch) {
@@ -78,6 +79,10 @@ public:
 
 	int DLen() const { return fDLen; }
 	int NSamples() const { return (fDLen - 32) / 2; }
+	long long CountEvents(const std::string&) override
+	{
+		return fFile && !fRaw.empty() && fFileBytes >= 0 ? fFileBytes / (long long)fRaw.size() : -1;
+	}
 
 private:
 	unsigned char Byte(int ch, int k) const { return fRaw[ch + nCh * k]; }

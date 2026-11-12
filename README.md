@@ -137,6 +137,10 @@ cd analysis
 
 Run numbers and channel names above are examples; use a run present in your data and channels from the mapping. For analyses that take an event count, `-1` processes all available events, except `draw_singleWaveform`, where `-1` means 100 events and the maximum is 100.
 
+All analyses report input event totals and reading progress, including the event count, percentage, elapsed time, rate, and estimated time remaining. Terminal progress updates in place; browser and redirected logs receive periodic lines. Waveform GIF generation also reports frame progress.
+
+For NKFADC and DWC files, totals come from the number of complete event blocks. BIC/JBNU files first scan packet headers to count distinct trigger IDs, so multiple channels belonging to one event are counted once; this extra pass has its own byte progress bar. The common reader's percentage describes how much of each input file has been read, including skipped events and lookahead. When an event limit ends processing early, it reports `requested range complete` without claiming that the whole file was read.
+
 Programs run in batch mode by default. Add `-g` to open ROOT canvas windows when a graphical display is available; if `DISPLAY` is unset, the program falls back to batch mode. Run a program without its required arguments to see its usage.
 
 ### DWC calibration
