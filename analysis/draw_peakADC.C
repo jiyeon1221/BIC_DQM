@@ -7,9 +7,10 @@
 void draw_peakADC(int RunNo, const char* channels, long long nEvt = -1,
                   const char* inPath = kDQMDefaultPath)
 {
-	DQM_FillAndDraw<TH1F>(RunNo, channels, 0, nEvt, inPath, "peakADC", "PeakADC", "HIST", true, false,
-		[](const TString& hname, const TString& label, const ChannelWaveform&, const DAQInfo& info) {
-			TH1F* h = new TH1F(hname, label + ";peak ADC;events", info.peak.nBins, info.peak.min, info.peak.max);
+	DQM_FillAndDraw<TH1F>(RunNo, channels, 0, nEvt, inPath, "peakADC", "PeakADC", "HIST", false, false,
+		[](const TString& hname, const TString& label, const ChannelWaveform&, const DAQInfo&) {
+			TH1F* h = new TH1F(hname, label + ";peak ADC;events",
+			                   kDQMPeakADCAxis.nBins, kDQMPeakADCAxis.min, kDQMPeakADCAxis.max);
 			h->SetDirectory(nullptr);
 			return h;
 		},

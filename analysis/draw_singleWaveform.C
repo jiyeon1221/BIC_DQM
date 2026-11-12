@@ -20,10 +20,14 @@ void draw_singleWaveform(int RunNo, const char* channels, long long firstEvt = 0
 
 	std::map<long long, std::map<DQMKey, std::vector<double>>> events;
 	std::set<DQMKey> seen;
+	double yMin = 1e300, yMax = -1e300;
 	DQM_Loop(sel, inPath, RunNo, firstEvt, nEvt,
-	         [&](const DQMKey& k, const ChannelWaveform& w, const DAQInfo&, long long evt) {
+	         [&](const DQMKey& k, const ChannelWaveform& w, const DAQInfo& info, long long evt) {
 		events[evt][k] = w.adc;
 		seen.insert(k);
+		const auto range = DQM_ADCDisplayRange(info, w.adc.empty() ? 0. : *std::max_element(w.adc.begin(), w.adc.end()));
+		yMin = std::min(yMin, range[0]);
+		yMax = std::max(yMax, range[1]);
 	});
 	if (events.empty()) {
 		std::cerr << "[DQM] nothing to draw for run " << RunNo << "\n";
@@ -61,6 +65,8 @@ void draw_singleWaveform(int RunNo, const char* channels, long long firstEvt = 0
 	TH1F* frame = new TH1F(Form("singleWaveform_%d_frame", RunNo), ";sample;ADC", (int)nSamples, 0, (double)nSamples);
 	frame->SetDirectory(nullptr);
 	frame->SetStats(0);
+	frame->SetMinimum(yMin);
+	frame->SetMaximum(yMax);
 
 	std::vector<TH1F*> hists;
 	TLegend* leg = new TLegend(0.66, 0.13, 0.88, 0.13 + 0.045 * order.size());
@@ -81,19 +87,13 @@ void draw_singleWaveform(int RunNo, const char* channels, long long firstEvt = 0
 
 	int nFrames = 0;
 	for (const auto& e : events) {
-		double yMin = 1e300, yMax = -1e300;
 		for (size_t i = 0; i < order.size(); ++i) {
 			hists[i]->Reset("ICES");
 			auto it = e.second.find(order[i]);
 			if (it == e.second.end()) continue;
-			for (size_t s = 0; s < it->second.size(); ++s) {
+			for (size_t s = 0; s < it->second.size(); ++s)
 				hists[i]->SetBinContent((int)s + 1, it->second[s]);
-				yMin = std::min(yMin, it->second[s]);
-				yMax = std::max(yMax, it->second[s]);
-			}
 		}
-		const double pad = (yMax > yMin ? yMax - yMin : 1.) * 0.1;
-		frame->GetYaxis()->SetRangeUser(yMin - pad, yMax + pad);
 		frame->SetTitle(Form("Run %d, Event %lld", RunNo, e.first));
 
 		c->cd();

@@ -9,11 +9,14 @@ void draw_waveform(int RunNo, const char* channels, long long evt = 0,
 {
 	DQM_FillAndDraw<TH1F>(RunNo, channels, evt, 1, inPath, Form("waveform_evt%lld", evt), "Waveform",
 		"HIST", false, false,
-		[evt](const TString& hname, const TString& label, const ChannelWaveform& w, const DAQInfo&) {
+		[evt](const TString& hname, const TString& label, const ChannelWaveform& w, const DAQInfo& info) {
 			const int ns = (int)w.adc.size();
 			TH1F* h = new TH1F(hname, label + Form(", event %lld;sample;ADC", evt), ns, 0, ns);
 			h->SetDirectory(nullptr);
 			h->SetStats(0);
+			const auto range = DQM_ADCDisplayRange(info, w.adc.empty() ? 0. : *std::max_element(w.adc.begin(), w.adc.end()));
+			h->SetMinimum(range[0]);
+			h->SetMaximum(range[1]);
 			for (int i = 0; i < ns; ++i) h->SetBinContent(i + 1, w.adc[i]);
 			return h;
 		},

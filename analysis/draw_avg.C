@@ -19,6 +19,12 @@ void draw_avg(int RunNo, const char* channels, long long nEvt = -1,
 		},
 		[](TProfile* h, const ChannelWaveform& w, const DAQInfo&, long long) {
 			for (int i = 0; i < (int)w.adc.size(); ++i) h->Fill(i, w.adc[i]);
+		},
+		[](TProfile* h, const DQMKey& key) {
+			if (std::get<0>(key) != "BIC") return;
+			const auto range = DQM_ADCDisplayRange(BICReader().Info(), h->GetBinContent(h->GetMaximumBin()));
+			h->SetMinimum(range[0]);
+			h->SetMaximum(range[1]);
 		});
 }
 

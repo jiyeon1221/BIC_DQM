@@ -24,6 +24,16 @@ const unsigned int kDQMTriggerLag = 1000;
 
 const int kDQMPadsPerCanvas = 33;
 
+// Fixed ADC spectrum axes shared by channel plots and hodoscope grids.
+const HistAxis kDQMIntADCAxis{2000, -1000., 100000.};
+const HistAxis kDQMPeakADCAxis{1000, -100., 5000.};
+
+inline std::array<double, 2> DQM_ADCDisplayRange(const DAQInfo& info, double maximum)
+{
+	if (std::string(info.name) == "BIC") return {-3000., std::max(1., 1.5 * maximum)};
+	return {info.adcMin, info.adcMax};
+}
+
 inline std::unique_ptr<DAQReader> DQM_MakeReader(const std::string& daq)
 {
 	if (daq == "BIC")    return std::unique_ptr<DAQReader>(new BICReader());
@@ -190,7 +200,8 @@ void DQM_FillAndDraw(int RunNo, const char* channels, long long firstEvt, long l
                      const char* drawOpt, bool logY, bool logZ,
                      const std::function<H*(const TString& hname, const TString& label,
                                             const ChannelWaveform&, const DAQInfo&)>& make,
-                     const std::function<void(H*, const ChannelWaveform&, const DAQInfo&, long long evt)>& fill)
+                     const std::function<void(H*, const ChannelWaveform&, const DAQInfo&, long long evt)>& fill,
+                     const std::function<void(H*, const DQMKey&)>& finish = {})
 {
 	const TString tagCopy(tag);
 	tag = tagCopy.Data();
@@ -208,6 +219,8 @@ void DQM_FillAndDraw(int RunNo, const char* channels, long long firstEvt, long l
 		                 DQM_ChannelLabel(map, k), w, info);
 		fill(h, w, info, evt);
 	});
+	if (finish)
+		for (const auto& entry : hists) finish(entry.second, entry.first);
 
 	for (const auto& k : sel.Order())
 		if (!hists.count(k))

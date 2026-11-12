@@ -66,10 +66,10 @@ void hodoscope(int RunNo, long long nEvt = -1, const char* plotType = "all", dou
 		}
 		if (doP && !hP[side][s])
 			hP[side][s] = new TH1F(Form("hodoscope_%d_peakADC_%s", RunNo, id.Data()), label + ";peak ADC;events",
-			                       info.peak.nBins, info.peak.min, info.peak.max);
+			                       kDQMPeakADCAxis.nBins, kDQMPeakADCAxis.min, kDQMPeakADCAxis.max);
 		if (doI && !hI[side][s])
 			hI[side][s] = new TH1F(Form("hodoscope_%d_intADC_%s", RunNo, id.Data()), label + ";integral ADC;events",
-			                       info.integral.nBins, info.integral.min, info.integral.max);
+			                       kDQMIntADCAxis.nBins, kDQMIntADCAxis.min, kDQMIntADCAxis.max);
 
 		for (int i = 0; i < (int)w.adc.size(); ++i) {
 			if (doO) hO[side][s]->Fill(i, w.adc[i]);
@@ -118,8 +118,8 @@ void hodoscope(int RunNo, long long nEvt = -1, const char* plotType = "all", dou
 	};
 	if (doO) drawGrid("overlay", [&](int side, int s) -> TH1* { return hO[side][s]; }, "COLZ", false, true);
 	if (doA) drawGrid("avg",     [&](int side, int s) -> TH1* { return hA[side][s]; }, "HIST", false, false);
-	if (doP) drawGrid("peakADC", [&](int side, int s) -> TH1* { return hP[side][s]; }, "HIST", true, false);
-	if (doI) drawGrid("intADC",  [&](int side, int s) -> TH1* { return hI[side][s]; }, "HIST", true, false);
+	if (doP) drawGrid("peakADC", [&](int side, int s) -> TH1* { return hP[side][s]; }, "HIST", false, false);
+	if (doI) drawGrid("intADC",  [&](int side, int s) -> TH1* { return hI[side][s]; }, "HIST", false, false);
 
 	if (doH) {
 		const bool useThr = !std::isnan(thr);
