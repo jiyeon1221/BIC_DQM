@@ -1,197 +1,150 @@
-# BIC DQM
+# NKDAQ / RCDAQ DQM
 
-CERN 2026 data quality monitoring tools for BIC, NKFADC, and JBNU data. The C++ analysis programs produce ROOT files and waveform GIFs, and the Python server provides a browser interface to run analyses and view the results.
+A web interface for plotting test-beam data from NKDAQ and RCDAQ. Select a run,
+channels or detector layers, and a plot type in the browser. View completed runs
+or monitor incoming data with Live mode.
 
-## Requirements
+This guide covers installation and server startup. Run all shell commands from
+this directory unless stated otherwise.
 
-- Linux with Bash and a C++compiler (`g++`).
-- CERN ROOT with `root-config` and the libraries used by `root-config --glibs`. The supplied environment script uses ROOT 6.32.10.
-- Python 3. The server uses the Python standard library; no pip packages are required.
-- A modern browser and access to the raw binary data. Data and compiled executables are not included in this repository.
+## 1. Install
 
+### Requirements
 
+Use a Linux machine with:
 
-## 1. Get the source
+- Python 3 with **PyROOT** and **NumPy**.
+- ROOT development tools, including `root-config`, and a compatible C++ compiler.
+- Boost headers, CMake 3.14 or newer, Make, Autoconf, Automake, and Libtool.
+- Development headers/libraries for zlib, bzip2, LZO2, and libtirpc, plus `rpcgen`.
+- Read access to the raw data and write access to this checkout and its output directory.
+
+The reference environment is CERN LCG 106 on x86-64 EL9, with ROOT 6.32.02
+and GCC 13.1.0. Use Python, PyROOT, and the compiler from the same environment.
+
+On an EL9 machine, the system build dependencies can be installed with:
 
 ```bash
-git clone https://github.com/jiyeon1221/BIC_DQM.git
-cd BIC_DQM
+sudo dnf install gcc-c++ make cmake autoconf automake libtool \
+    boost-devel zlib-devel bzip2-devel lzo-devel libtirpc-devel rpcgen
 ```
 
-Run the following commands from the repository root unless a section explicitly changes directory.
+Package availability depends on the enabled distribution repositories. Install
+ROOT/PyROOT and NumPy separately, or use the LCG environment below.
 
-## 2. Load the shared server environment
+### Set up ROOT
 
-All users work on the same server with the same ROOT installation and dataset. From the repository root, load the existing environment script:
+If ROOT is already configured, the setup scripts use that installation. Otherwise,
+`Setting.sh` sources this default environment:
+
+```text
+/cvmfs/sft.cern.ch/lcg/views/LCG_106/x86_64-el9-gcc13-opt/setup.sh
+```
+
+On another server, select your ROOT setup script before building:
 
 ```bash
+export ROOT_SETUP=/path/to/root/bin/thisroot.sh
+source Setting.sh
+python3 -c 'import ROOT, numpy; print(ROOT.gROOT.GetVersion())'
+root-config --version
+```
+
+On a machine with the default CVMFS environment, omit the `export ROOT_SETUP` line.
+A missing `ROOT` Python module means that Python and ROOT are not configured
+consistently; resolve this before proceeding.
+
+### Build
+
+```bash
+./build.sh
 source web/envset.sh
 ```
 
-If you are already in `web/`, run `source envset.sh`. Repeat this in each new terminal before compiling or running an analysis. The script already sets the ROOT environment and shared data path.
+This builds the supplied RCDAQ libraries and the ROOT C++ plotters. Build failures
+retain their logs under the `/tmp/rcdaq-build.*` directory printed by the script.
 
-The web server sources `envset.sh` automatically when it starts.
+To rebuild the installed RCDAQ libraries and plotters from scratch:
 
-### Input data
+```bash
+bash build.sh --clean
+```
 
-The shared dataset is available at the path configured by `envset.sh`. Readers expect these names, with a five-digit run number:
+This does not remove raw data or saved results. Do not rebuild while DQM jobs are running.
 
+The source code needed for RCDAQ is included under `decoding/rcdaq/src/`.
+System dependencies are used on a fresh checkout. An existing local dependency
+bundle under `decoding/rcdaq/deps/sysroot/` is also supported; use
+`RCDAQ_DEPS_ROOT=/absolute/path/to/sysroot` to select another bundle. Compiled
+libraries and local dependency bundles are excluded from Git.
 
-| Reader | Filename pattern           | Example for run 790     |
-| ------ | -------------------------- | ----------------------- |
-| BIC    | `Run_<run>_BIC_<MID>.dat`  | `Run_00790_BIC_41.dat`  |
-| NKFADC | `Run_<run>_FADC_<MID>.dat` | `Run_00790_FADC_1.dat`  |
-| JBNU   | `Run_<run>_JBNU_<MID>.dat` | `Run_00790_JBNU_21.dat` |
+### Configure input data
 
+Set both input locations before starting the server:
 
-Channel names and module assignments are defined in `mapping/mapping_CERN2026.h`. Each analysis needs the input files for the selected channels or detectors.
+```bash
+export DQM_DATA_PATH=/path/to/binary/NKDAQ
+export RCDAQ_DATA_PATH=/path/to/binary/RCDAQ
+source web/envset.sh
+```
 
-## 3. Compile an analysis program
+Expected filenames include:
 
-Load the environment, then change into `analysis/`:
+```text
+NKDAQ/Run_00790_BIC_41.dat
+NKDAQ/Run_00790_FADC_2.dat
+RCDAQ/2608CERN_ROC_0-00001088-0000.evt
+```
+
+Keep the acquisition filenames. The run number and channel mapping determine
+which inputs are opened. An RCDAQ selection may also need NKDAQ inputs for AUX
+detectors, as specified by the mapping.
+
+| Environment variable | Purpose | Default |
+| --- | --- | --- |
+| `ROOT_SETUP` | Environment script used when ROOT is not configured | LCG path shown above |
+| `DQM_DATA_PATH` | NKDAQ `.dat` directory | `/pnfs/knu.ac.kr/data/eic/user/bgseo/TestBeam/2608CERN/binary/NKDAQ` |
+| `RCDAQ_DATA_PATH` | RCDAQ `.evt` directory | `/pnfs/knu.ac.kr/data/eic/user/bgseo/TestBeam/2608CERN/binary/RCDAQ` |
+| `DQM_WEB_OUTPUT_PATH` | Plot output directory | `output/plot/` in this checkout |
+| `DQM_DWC_CALIBRATION` | DWC calibration file | `config/dwc_calibration.txt` |
+| `RCDAQ_DEPS_ROOT` | Optional dependency sysroot | `decoding/rcdaq/deps/sysroot/` |
+| `JOBS` | RCDAQ build parallelism | `4` |
+
+Use absolute paths for environment overrides. The decoded cache is stored in a
+`decoded/` directory next to the selected plot output directory.
+
+### Check mapping and calibration
+
+Before using a new detector setup, check:
+
+- [`mapping/nkdaq_mapping.h`](mapping/nkdaq_mapping.h) for the NKDAQ profile.
+- [`mapping/rcdaq_mapping.h`](mapping/rcdaq_mapping.h) for the RCDAQ profile.
+- [`config/dwc_calibration.txt`](config/dwc_calibration.txt) for the DWC position calibration.
+- [`config/aux_cuts.json`](config/aux_cuts.json) for the AUX cut thresholds.
+
+The included calibration contains the current test-beam constants. Replace them
+with the appropriate constants for your setup before using DWC positions or cuts.
+The web application does not require the separate `analysis/` programs.
+
+## 2. Start the web interface
 
 ```bash
 source web/envset.sh
-cd analysis
-```
-
-Compile the program you want to use. Run each command separately:
-
-```bash
-./compile.sh draw_peakADC
-```
-
-Run the script without arguments to display the available program names:
-
-```bash
-./compile.sh
-```
-
-## 4. Start the web interface
-
-For first use, source the environment script and compile the programs you want to use, one at a time, as described above. Then start the server:
-
-```bash
-cd ../
 python3 web/serve_rootfiles.py --host 127.0.0.1 --port 8000
 ```
 
-Open **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)** in your browser. Keep the terminal running; press **Ctrl+C** to stop the server.
+Open **http://localhost:8000/** in a browser on the same machine.
 
-The server loads its ROOT environment automatically from `web/envset.sh`. Startup messages show the ROOT installation, input data directory, output directory, and DWC calibration status.
-
-For access from another machine on the network:
-
-```bash
-python3 web/serve_rootfiles.py --host 0.0.0.0 --port 8000
-```
-
-Open `http://<server-ip>:8000/` from the other machine. The server's defaults are `0.0.0.0` and port `8000`. Use a different `--port` if that port is already occupied.
-
-For a remote host accessed through SSH, you can keep the server on `127.0.0.1` and forward the port from your own computer:
+For a remote server, keep the server running and create an SSH tunnel from your
+own computer:
 
 ```bash
-ssh -L 8000:127.0.0.1:8000 <user>@<server>
+ssh -L 8000:127.0.0.1:8000 USER@SERVER
 ```
 
-Then open **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)** on your own computer.
+Then open **http://localhost:8000/** on your computer. To allow direct access on a
+trusted network, use `--host 0.0.0.0` and open `http://SERVER:8000/` instead. The
+interface has no login and allows starting and stopping DQM jobs.
 
-### Run an analysis in the browser
-
-1. Select the analysis type and method in the command builder.
-2. Enter a run number, event settings, and channel or module names from the mapping.
-3. Run the generated command and follow its output in the page.
-4. Open a generated ROOT or GIF file from the file list to inspect it.
-
-Commands run in `analysis/`, so executable names are entered as `./draw_peakADC`, for example. The file list is initially empty on a fresh clone because generated results are excluded from Git.
-
-Use `serve_rootfiles.py` to start the interface: it provides the command and file APIs used by the page.
-
-## 5. Run analyses from the terminal
-
-Load the environment from the repository root, then change into `analysis/`:
-
-```bash
-source web/envset.sh
-cd analysis
-
-# Peak ADC for channels CC1 and CC2, using all available events.
-./draw_peakADC 790 -1 CC1 CC2
-
-# Average waveform using up to 1000 events.
-./draw_avg 790 1000 CC1
-
-# Waveform at a selected event index.
-./draw_waveform 790 0 CC1
-
-# Animated waveforms starting at event 0, for 20 events.
-./draw_singleWaveform 790 0 20 CC1
-
-# DWC and combined auxiliary plots.
-./DWC 790 -1
-./draw_AUX 790 -1
-
-# Hodoscope plots.
-./hodoscope 790 -1
-```
-
-Run numbers and channel names above are examples; use a run present in your data and channels from the mapping. For analyses that take an event count, `-1` processes all available events, except `draw_singleWaveform`, where `-1` means 100 events and the maximum is 100.
-
-All analyses report input event totals and reading progress, including the event count, percentage, elapsed time, rate, and estimated time remaining. Terminal progress updates in place; browser and redirected logs receive periodic lines. Waveform GIF generation also reports frame progress.
-
-For NKFADC and DWC files, totals come from the number of complete event blocks. BIC/JBNU files first scan packet headers to count distinct trigger IDs, so multiple channels belonging to one event are counted once; this extra pass has its own byte progress bar. The common reader's percentage describes how much of each input file has been read, including skipped events and lookahead. When an event limit ends processing early, it reports `requested range complete` without claiming that the whole file was read.
-
-Programs run in batch mode by default. Add `-g` to open ROOT canvas windows when a graphical display is available; if `DISPLAY` is unset, the program falls back to batch mode. Run a program without its required arguments to see its usage.
-
-### DWC calibration
-
-DWC position plots use `analysis/DWC_calibration_constants.txt`. Without this file, positions are shown as uncalibrated.
-
-To generate constants, run from `analysis/` with six calibration run numbers:
-
-```text
-./DWC_calibration <dwc1LU> <dwc1C> <dwc1RD> <dwc2LU> <dwc2C> <dwc2RD> [posMM=30] [nEvt=-1]
-```
-
-Replace the placeholders with the actual calibration runs. This creates `DWC_calibration_constants.txt` and `DWC_calibration_fits.root` in the current directory. To use a different constants file:
-
-```bash
-./DWC 790 -1 /path/to/DWC_calibration_constants.txt
-./draw_AUX 790 -1 /path/to/DWC_calibration_constants.txt
-```
-
-The calibration ROOT file also includes before/after 2D position comparisons for DWC1 and DWC2 (`cDWCCalibBefore_DWC1`, `cDWCCalibAfter_DWC1`, and the corresponding DWC2 canvases). Each canvas shows LU, C, and RD runs from left to right. Before-calibration axes are L-R and U-D in samples (2 ns/sample); after-calibration axes are X and Y in mm. Both plots use the same events with valid times on all four channels, and preserve the existing calibration sign convention.
-
-
-
-## Output and repository layout
-
-```text
-analysis/   C++ analysis sources, compile script, and locally built executables
-include/    Shared analysis, data reader, and output headers
-mapping/    CERN 2026 channel mapping
-web/        Browser interface, JavaScript libraries, environment script, and server
-output/     Generated ROOT files and GIFs (created during analysis; ignored by Git)
-```
-
-Analysis results normally go to `output/<plot-type>/Run_<run-number>/`. The analysis creates the necessary output directories.
-
-`DQM_OUTPUT_PATH` can override the analysis output directory, but the web server always lists files from this repository's `output/` directory. Leave this variable unset for the standard browser workflow.
-
-Compiled executables, build artifacts, Python caches, and generated output are excluded by `.gitignore`.
-
-## Troubleshooting
-
-
-| Symptom                                                          | What to check                                                                                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `root-config: command not found` or ROOT headers cannot be found | Run `source web/envset.sh` from the repository root and confirm `root-config --version` works.                                  |
-| `g++: command not found`                                         | Confirm `command -v g++` works in your server session.                                                                          |
-| ROOT shared libraries cannot be loaded                           | Source `web/envset.sh` in the terminal; for browser commands, restart the server to reload the shared environment.              |
-| An analysis executable is missing                                | From `analysis/`, run `./compile.sh <name>` for the missing program.                                                            |
-| `[DAQ] cannot open ...`                                          | Source `web/envset.sh` and check that the requested run and MID exist in the shared dataset and are readable.                   |
-| No output files appear in the browser                            | Run an analysis, inspect its command output, and check that `DQM_OUTPUT_PATH` is unset or points to the repository's `output/`. |
-| `Address already in use`                                         | Stop the previous server or choose another port with `--port`.                                                                  |
-| DWC positions are uncalibrated                                   | Generate or provide `DWC_calibration_constants.txt` in `analysis/`, or pass a constants file explicitly.                        |
-
-
+Keep the server terminal open. Restart the server after changing its code or
+environment variables; refresh the browser after updating the web interface.

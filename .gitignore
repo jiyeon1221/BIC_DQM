@@ -1,33 +1,45 @@
-# Compiled analysis executables
-/analysis/DWC
-/analysis/DWC_calibration
-/analysis/draw_AUX
-/analysis/draw_avg
-/analysis/draw_heatmap
-/analysis/draw_intADC
-/analysis/draw_overlay
-/analysis/draw_peakADC
-/analysis/draw_singleWaveform
-/analysis/draw_waveform
-/analysis/hodoscope
+# Run data, plots, checkpoints, and compatibility output links.
+output/
+/web/output
 
-# Build products and ROOT compilation cache
+# Local build products and machine-specific dependency bundles.
+/decoding/rcdaq/install/
+/decoding/rcdaq/deps/
+/plotting/libdqm_plots.so
+/plotting/.build.lock
+/plotting/.libdqm_plots.*.so
+
+# Compiler, ROOT, and CMake build artifacts.
 /build/
 /cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 *.o
 *.obj
-*.so
 *.a
+*.so
+*.so.*
 *.pcm
-*.d
 *_ACLiC_dict*
-
-# Generated analysis output
-/output/
 *.root
 
-# Python cache
+# Python caches and local environments.
 __pycache__/
 *.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor and operating-system files.
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~
+.env
+.env.local
+
+# Personal reference notes.
+/forme.md
