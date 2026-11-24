@@ -1,0 +1,123 @@
+#ifndef EVENTMATCHING_RCDAQ_MAPPING_H
+#define EVENTMATCHING_RCDAQ_MAPPING_H
+
+#include "../include/MapEntry.h"
+#include <vector>
+
+// GCROC uses the original global channel IDs (0..143).
+// mid and sma are unknown in the supplied RC map, so they remain -1.
+// Geometry follows the original CMAP comments and h2gcroc canvas order:
+// SFIL6/7 top-to-bottom, then Bulk1..6 by top/middle/bottom rows.
+// Field meanings and coordinate conventions are shared with nkdaq_mapping.h.
+
+inline const std::vector<DQMMapEntry>& RCDAQ_MappingTable()
+{
+    static const std::vector<DQMMapEntry> table = {
+        // DAQ       MID   CH   NAME      det side sma  z  y
+        {"GCROC",    -1,  16, "SFIL6_xp_y4", 0, 1, -1, 2, 4},
+        {"GCROC",    -1,   3, "SFIL6_xp_y3", 0, 1, -1, 2, 3},
+        {"GCROC",    -1,  18, "SFIL6_xp_y2", 0, 1, -1, 2, 2},
+        {"GCROC",    -1,  19, "SFIL6_xp_y1", 0, 1, -1, 2, 1},
+        {"GCROC",    -1,  20, "SFIL6_xp_y0", 0, 1, -1, 2, 0},
+        {"GCROC",    -1,  21, "SFIL7_xp_y4", 0, 1, -1, 3, 4},
+        {"GCROC",    -1,  22, "SFIL7_xp_y3", 0, 1, -1, 3, 3},
+        {"GCROC",    -1,  23, "SFIL7_xp_y2", 0, 1, -1, 3, 2},
+        {"GCROC",    -1,  24, "SFIL7_xp_y1", 0, 1, -1, 3, 1},
+        {"GCROC",    -1,  25, "SFIL7_xp_y0", 0, 1, -1, 3, 0},
+        {"GCROC",    -1, 141, "SFIL6_xm_y4", 0, 0, -1, 2, 4},
+        {"GCROC",    -1, 142, "SFIL6_xm_y3", 0, 0, -1, 2, 3},
+        {"GCROC",    -1, 139, "SFIL6_xm_y2", 0, 0, -1, 2, 2},
+        {"GCROC",    -1, 140, "SFIL6_xm_y1", 0, 0, -1, 2, 1},
+        {"GCROC",    -1, 137, "SFIL6_xm_y0", 0, 0, -1, 2, 0},
+        {"GCROC",    -1, 138, "SFIL7_xm_y4", 0, 0, -1, 3, 4},
+        {"GCROC",    -1, 135, "SFIL7_xm_y3", 0, 0, -1, 3, 3},
+        {"GCROC",    -1, 136, "SFIL7_xm_y2", 0, 0, -1, 3, 2},
+        {"GCROC",    -1, 133, "SFIL7_xm_y1", 0, 0, -1, 3, 1},
+        {"GCROC",    -1, 132, "SFIL7_xm_y0", 0, 0, -1, 3, 0},
+        {"GCROC",    -1,   1, "Bulk1_xp_y2", 1, 1, -1, 0, 2},
+        {"GCROC",    -1,  29, "Bulk2_xp_y2", 1, 1, -1, 1, 2},
+        {"GCROC",    -1,  32, "Bulk3_xp_y2", 1, 1, -1, 2, 2},
+        {"GCROC",    -1,   0, "Bulk4_xp_y2", 1, 1, -1, 3, 2},
+        {"GCROC",    -1,  38, "Bulk5_xp_y2", 1, 1, -1, 4, 2},
+        {"GCROC",    -1,  41, "Bulk6_xp_y2", 1, 1, -1, 5, 2},
+        {"GCROC",    -1,  27, "Bulk1_xp_y1", 1, 1, -1, 0, 1},
+        {"GCROC",    -1,  30, "Bulk2_xp_y1", 1, 1, -1, 1, 1},
+        {"GCROC",    -1,  33, "Bulk3_xp_y1", 1, 1, -1, 2, 1},
+        {"GCROC",    -1,  36, "Bulk4_xp_y1", 1, 1, -1, 3, 1},
+        {"GCROC",    -1,  39, "Bulk5_xp_y1", 1, 1, -1, 4, 1},
+        {"GCROC",    -1,  42, "Bulk6_xp_y1", 1, 1, -1, 5, 1},
+        {"GCROC",    -1,  28, "Bulk1_xp_y0", 1, 1, -1, 0, 0},
+        {"GCROC",    -1,  31, "Bulk2_xp_y0", 1, 1, -1, 1, 0},
+        {"GCROC",    -1,  34, "Bulk3_xp_y0", 1, 1, -1, 2, 0},
+        {"GCROC",    -1,  37, "Bulk4_xp_y0", 1, 1, -1, 3, 0},
+        {"GCROC",    -1,  40, "Bulk5_xp_y0", 1, 1, -1, 4, 0},
+        {"GCROC",    -1,  43, "Bulk6_xp_y0", 1, 1, -1, 5, 0},
+        {"GCROC",    -1, 124, "Bulk1_xm_y2", 1, 0, -1, 0, 2},
+        {"GCROC",    -1,  72, "Bulk2_xm_y2", 1, 0, -1, 1, 2},
+        {"GCROC",    -1,  75, "Bulk3_xm_y2", 1, 0, -1, 2, 2},
+        {"GCROC",    -1,  78, "Bulk4_xm_y2", 1, 0, -1, 3, 2},
+        {"GCROC",    -1,  81, "Bulk5_xm_y2", 1, 0, -1, 4, 2},
+        {"GCROC",    -1,  79, "Bulk6_xm_y2", 1, 0, -1, 5, 2},
+        {"GCROC",    -1, 123, "Bulk1_xm_y1", 1, 0, -1, 0, 1},
+        {"GCROC",    -1,  73, "Bulk2_xm_y1", 1, 0, -1, 1, 1},
+        {"GCROC",    -1,  85, "Bulk3_xm_y1", 1, 0, -1, 2, 1},
+        {"GCROC",    -1,  84, "Bulk4_xm_y1", 1, 0, -1, 3, 1},
+        {"GCROC",    -1,  82, "Bulk5_xm_y1", 1, 0, -1, 4, 1},
+        {"GCROC",    -1,  76, "Bulk6_xm_y1", 1, 0, -1, 5, 1},
+        {"GCROC",    -1, 122, "Bulk1_xm_y0", 1, 0, -1, 0, 0},
+        {"GCROC",    -1,  74, "Bulk2_xm_y0", 1, 0, -1, 1, 0},
+        {"GCROC",    -1,  77, "Bulk3_xm_y0", 1, 0, -1, 2, 0},
+        {"GCROC",    -1, 114, "Bulk4_xm_y0", 1, 0, -1, 3, 0},
+        {"GCROC",    -1,  86, "Bulk5_xm_y0", 1, 0, -1, 4, 0},
+        {"GCROC",    -1,  83, "Bulk6_xm_y0", 1, 0, -1, 5, 0},
+        // Auxiliary channels in this configuration: explicit DAQ/MID/channel assignments.
+        // This table is independent; it does not import the NKDAQ mapping.
+        {"JBNU",    21,  1,  "HODO_L_01",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  2,  "HODO_L_02",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  3,  "HODO_L_03",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  4,  "HODO_L_04",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  5,  "HODO_L_08",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  6,  "HODO_L_07",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  7,  "HODO_L_06",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  8,  "HODO_L_05",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21,  9,  "HODO_L_12",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 10,  "HODO_L_11",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 11,  "HODO_L_10",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 12,  "HODO_L_09",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 13,  "HODO_L_13",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 14,  "HODO_L_14",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 15,  "HODO_L_15",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 16,  "HODO_L_16",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 17,  "HODO_R_01",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 18,  "HODO_R_02",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 19,  "HODO_R_03",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 20,  "HODO_R_04",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 21,  "HODO_R_08",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 22,  "HODO_R_07",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 23,  "HODO_R_06",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 24,  "HODO_R_05",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 25,  "HODO_R_12",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 26,  "HODO_R_11",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 27,  "HODO_R_10",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 28,  "HODO_R_09",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 29,  "HODO_R_13",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 30,  "HODO_R_14",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 31,  "HODO_R_15",       -1,   -1,  -1,  -1, -1 },
+        {"JBNU",    21, 32,  "HODO_R_16",       -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   3,  1,  "DWC1_R",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   3,  2,  "DWC1_L",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   3,  3,  "DWC1_U",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   3,  4,  "DWC1_D",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   4,  1,  "DWC2_R",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   4,  2,  "DWC2_L",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   4,  3,  "DWC2_U",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   4,  4,  "DWC2_D",          -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   2,  1,  "CC1",             -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   2,  2,  "CC2",             -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   1,  3,  "TRIG1",           -1,   -1,  -1,  -1, -1 },
+        {"NKFADC",   1,  4,  "TRIG2",           -1,   -1,  -1,  -1, -1 },
+    };
+    return table;
+}
+
+#endif

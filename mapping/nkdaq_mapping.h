@@ -1,36 +1,27 @@
 //   DAQ  : "BIC" / "JBNU" / "NKFADC"
 //   MID  : BIC 41-43, JBNU 21, NKFADC 1-4
-//   CH   : BIC/JBNU 0-32, NKFADC 1-4
-//   NAME : 채널 이름
-//   det, side, sma, z, y : module 위치 정보 (heatmap용)
+//   CH   : BIC/JBNU 1-32, NKFADC 1-4
+//   NAME : Channel name
+//   det, side, sma, z, y : Module position used by heatmaps
 //     det  : SFIL = 0, Bulk = 1
 //     side : -x = 0, +x = 1
-//     sma  : SMA flat 번호
-//     z    : 빔 방향 (+z), 상류 -> 하류   (SFIL 0-4 = SFIL 4-8, Bulk 0-5 = Bulk 1-6)
-//     y    : 아래 -> 위                 (SFIL 0-4, Bulk 0-2)
+//     sma  : SMA flat index
+//     z    : Beam direction (+z), upstream -> downstream   (SFIL 0-4 = SFIL 4-8, Bulk 0-5 = Bulk 1-6)
+//     y    : Bottom -> top                 (SFIL 0-4, Bulk 0-2)
 
 
-#ifndef MAPPING_CERN2026_H
-#define MAPPING_CERN2026_H
+#ifndef EVENTMATCHING_NKDAQ_MAPPING_H
+#define EVENTMATCHING_NKDAQ_MAPPING_H
 
+#include "../include/MapEntry.h"
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
 
-struct DQMMapEntry {
-	std::string daq;
-	int         mid;
-	int         ch;
-	std::string name;
-	int         det;
-	int         side;
-	int         sma;
-	int         z;
-	int         y;
-};
 
-inline const std::vector<DQMMapEntry>& DQM_MappingTable()
+
+inline const std::vector<DQMMapEntry>& NKDAQ_MappingTable()
 {
 	static const std::vector<DQMMapEntry> table = {
 		//  DAQ     MID  CH   NAME              det side  sma   z   y
@@ -195,7 +186,7 @@ inline const std::vector<DQMMapEntry>& DQM_MappingTable()
 inline std::map<std::pair<int, int>, std::vector<int>> GetSimCaloChMap()
 {
 	std::map<std::pair<int, int>, std::vector<int>> chMap;
-	for (const auto& e : DQM_MappingTable())
+	for (const auto& e : NKDAQ_MappingTable())
 		if (e.daq == "BIC" && e.det >= 0) chMap[{e.mid, e.ch}] = {e.det, e.side, e.sma, e.z, e.y};
 	return chMap;
 }

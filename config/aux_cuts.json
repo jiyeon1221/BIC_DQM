@@ -1,0 +1,29 @@
+{
+  "description": "DWC: TB2025 active correlation cut, |DWC1-DWC2| <= 10 mm in both axes, using current DQM position calibration. PID: both CC1 and CC2 PeakADC < 10. Edit thresholds only here.",
+  "dwc": [
+    {
+      "field": "DWC.dx",
+      "min": null,
+      "max": 10
+    },
+    {
+      "field": "DWC.dy",
+      "min": null,
+      "max": 10
+    }
+  ],
+  "pid": [
+    {
+      "field": "CC1.peak",
+      "min": null,
+      "max": 10,
+      "max_exclusive": true
+    },
+    {
+      "field": "CC2.peak",
+      "min": null,
+      "max": 10,
+      "max_exclusive": true
+    }
+  ]
+}
