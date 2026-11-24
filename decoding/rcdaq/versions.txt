@@ -1,0 +1,21 @@
+Installed from RCDAQ installation.pdf (maintainer, 2026-11-21) and rcdaq.tar.gz.
+Updated: 2026-11-22
+Bundle SHA256: d2739f8f8d58df40c9ea6c8baa592e7fe4b76adebb9b727d34a3382b40ac8cd7
+Source hashes and local adaptations: source_manifest.json
+
+rcdaq: sPHENIX-Collaboration/rcdaq c725823a988e247050a1d648f89e78491fd5ec24
+online_distribution: eic/online_distribution c9ad3b5723228153f54232664ef6c1f7e76e4ae9
+The bundled working tree is authoritative, including maintainer changes outside Git HEAD.
+Packet decoder and pmonitor sources are copied unchanged from the bundle.
+No local piteratoropen extension.
+
+ROOT: LCG_106, ROOT 6.32.02, GCC 13.1.0, C++20
+Build: RCDAQ Autotools; eventlibraries+pmonitor together with CMake; install/lib.
+Local dependencies remain under deps/sysroot (libtirpc, rpcgen, lzo, bzip2).
+Transient build directories and logs are kept in /tmp and removed after success.
+
+DQM input: .evt -> decoding/rcdaq_decoder.py -> supplied packet decoder.
+Runtime location: DQM/decoding/rcdaq; environment: setup.sh; rebuild: DQM/build.sh.
+DQM plotting: plotting/; event matching: matching/.
+Standalone analysis: BIC/analysis/RCDAQ; shared headers: BIC/analysis/include.
+The complete supplied runtime sources are retained for reproducible builds.

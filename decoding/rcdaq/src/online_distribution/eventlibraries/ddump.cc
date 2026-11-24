@@ -1,0 +1,433 @@
+#include <stdlib.h>
+#include <signal.h>
+#include <string>
+
+#include "fileEventiterator.h"
+#include "testEventiterator.h"
+#include "rcdaqEventiterator.h"
+#include "oncsEventiterator.h"
+#include <stdio.h>
+
+#ifdef HAVE_GETOPT_H
+#include "getopt.h"
+#endif
+
+#include<vector>
+#include "rangeParser.h"
+
+
+
+#define RCDAQEVENTITERATOR 1
+#define FILEEVENTITERATOR 2
+#define TESTEVENTITERATOR 3
+#define ONCSEVENTITERATOR 4
+
+#if defined(SunOS) || defined(Linux) || defined(OSF1)
+void sig_handler(int);
+#else
+void sig_handler(...);
+#endif
+
+// we make it a global variable so the signal; handler can get at it.
+
+Eventiterator *it;
+
+void exitmsg()
+{
+  COUT << "** usage: ddump -ecnstdfghiTOv datastream" << std::endl;
+  COUT << "    type  ddump -h   for more help" << std::endl;
+  exit(0);
+}
+
+void evtcountexitmsg()
+{
+  COUT << "** cannot specify both -e and -c!" << std::endl;
+  COUT << "    type  dlist -h  for more help" << std::endl;
+  exit(0);
+}
+
+
+void exithelp()
+{
+
+  COUT << std::endl;
+  COUT << "   ddump dumps selected packets from a given event. The event can come" << std::endl;
+  COUT << "   from any of the standard sources, ET pool, file, or test stream. " << std::endl;
+  COUT << "   The default is to get the next available event from a ET pool." << std::endl;
+  COUT << std::endl;
+  COUT << "   ddump can optionally identify the event with the  -i option." << std::endl;
+  COUT << "   You can request a certain event number with the -e option. " << std::endl;
+  COUT << "   You can ask for a certain event type (data, beg-run, etc) with -t." << std::endl;
+  COUT << "     -t takes a number (e.g. 9 for begin-run) for an exact match," << std::endl;
+  COUT << "     or DATA or SPECIAL to selct data or special events (DATA is default)" << std::endl;
+  COUT << "     you can abbreviate DATA to D or d and SPECIAL to S or s." << std::endl;
+
+  COUT << std::endl;
+  COUT << "   Note: In order to find out which packets are contained in an event, you can" << std::endl;
+  COUT << "   use the dlist utility." << std::endl;
+  COUT << std::endl;
+  COUT << "   Example:" << std::endl;
+  COUT << std::endl;
+  COUT << "   -T says that the input stream is a test stream (where events have 4 " << std::endl;
+  COUT << "   predictable packets 1001, 1002, 1003, and 1008); we dump packet 1002:" << std::endl;
+  COUT << std::endl;
+  COUT << "   > ddump -p 1002 -T" << std::endl;
+  COUT << "   Packet  1002    36 -1 (ePIC Packet)   5 (ID2EVT)" << std::endl;
+  COUT << "       0 |  0000 0001 0002 0003 0004 0005 0006 0007" << std::endl;
+  COUT << "       8 |  0008 0009 000a 000b 000c 000d 000e 000f" << std::endl;
+  COUT << "      16 |  0010 0011 0012 0013 0014 0015 0016 0017" << std::endl;
+  COUT << "      24 |  0018 0019 001a 001b 001c 001d 001e 001f" << std::endl;
+  COUT << "      32 |  0020 0021 0022 0023 0024 0025 0026 0027" << std::endl;
+  COUT << "      40 |  0028 0029 002a 002b 002c 002d 002e 002f" << std::endl;
+  COUT << "      48 |  0030 0031 0032 0033 0034 0035 0036 0037" << std::endl;
+  COUT << "      56 |  0038 0039 003a 003b 003c 003d 003e 003f" << std::endl;
+  COUT << std::endl;
+  COUT << "   The -i option also lets the event identify itself." << std::endl;
+
+  COUT << std::endl;
+  COUT << "   > ddump -p 1002 -T -i" << std::endl;
+  COUT << "   -- Event     1 Run:  1331 length:   144 type:  1 (Data Event)  1792717476" << std::endl;
+  COUT << "   Packet  1002    36 -1 (ePIC Packet)   5 (ID2EVT)" << std::endl;
+  COUT << "       0 |  0000 0001 0002 0003 0004 0005 0006 0007" << std::endl;
+  COUT << "       8 |  0008 0009 000a 000b 000c 000d 000e 000f" << std::endl;
+  COUT << "      16 |  0010 0011 0012 0013 0014 0015 0016 0017" << std::endl;
+  COUT << "      24 |  0018 0019 001a 001b 001c 001d 001e 001f" << std::endl;
+  COUT << "      32 |  0020 0021 0022 0023 0024 0025 0026 0027" << std::endl;
+  COUT << "      40 |  0028 0029 002a 002b 002c 002d 002e 002f" << std::endl;
+  COUT << "      48 |  0030 0031 0032 0033 0034 0035 0036 0037" << std::endl;
+  COUT << "      56 |  0038 0039 003a 003b 003c 003d 003e 003f" << std::endl;
+
+  COUT << std::endl;
+
+  COUT << "  The -p option takes a number, a list, or a range of packets" << std::endl;
+  COUT << "  You can combine ranges and lists:" << std::endl;
+  COUT << "   > ddump -p 1001 -T -i" << std::endl;
+  COUT << "   > ddump -p 1001,1002 -T -i" << std::endl;
+  COUT << "   > ddump -p 1001-1003 -T -i" << std::endl;
+  COUT << "   > ddump -p 1001-1002,1003 -T -i" << std::endl;
+
+  COUT << std::endl;
+
+  COUT << "  List of options: " << std::endl;
+  COUT << " -e <event number>" << std::endl;
+  COUT << " -c <number> get nth event (-e gives event with number n)" << std::endl;
+  COUT << " -n <number> repeat for n events (0: until end of stream)" << std::endl;
+  COUT << " -p <Packet Id>" << std::endl;
+  COUT << " -t <event type>" << std::endl;
+  COUT << " -i <print event identity>" << std::endl;
+  COUT << " -f (stream is a file)" << std::endl;
+  COUT << " -T (stream is a test stream)" << std::endl;
+  COUT << " -r (stream is a rcdaq monitoring stream)" << std::endl;
+  COUT << " -O (stream is a legacy ONCS format file)" << std::endl;
+  COUT << " -g use generic dump" << std::endl;
+  COUT << " -d numbers are std::decimal (default std::hex) for generic dump" << std::endl;
+  COUT << " -o numbers are octal (default std::hex) for generic dump" << std::endl;
+  COUT << " -s for a generic dump, send packet raw payloadc to stdout for further manipulation" << std::endl;
+  COUT << " -x like -s, but also include the packet header" << std::endl;
+  COUT << " -v verbose" << std::endl;
+  COUT << " -h this message" << std::endl << std::endl;
+  exit(0);
+}
+
+#if defined(SunOS) || defined(Linux) || defined(OSF1)
+void sig_handler(int i)
+#else
+  void sig_handler(...)
+#endif
+{
+  COUT << "sig_handler: signal seen " << std::endl;
+  if (it) delete it;
+  exit(0);
+}
+
+
+int 
+main(int argc, char *argv[])
+{
+
+  if (argc < 2) exitmsg();
+
+  int c;
+  int status;
+
+  int eventnumber =0;
+  int countnumber =0;
+  int repeatcount =1;
+  int subeventid =0;
+
+  int eventtypemin = 1;  
+  int eventtypemax = 7;  
+  int eventtype = 1;
+  int type_is_a_range = 1;
+  int verbose = 0;
+
+
+  int ittype = FILEEVENTITERATOR;
+  int dumpstyle = EVT_HEXADECIMAL;
+  int identify = 0;
+  int generic = 0;
+
+  extern char *optarg;
+  extern int optind;
+
+  std::vector<int> packetSelection;
+
+  while ((c = getopt(argc, argv, "n:c:e:p:t:idsxfrghTOv")) != EOF)
+    switch (c) 
+      {
+      case 'e':
+	if ( !sscanf(optarg, "%d", &eventnumber) ) exitmsg();
+	break;
+
+      case 'c':
+	if ( !sscanf(optarg, "%d", &countnumber) ) exitmsg();
+	break;
+
+      case 'n':
+	if ( !sscanf(optarg, "%d", &repeatcount) ) exitmsg();
+	break;
+
+      case 'p':
+	//	if ( !sscanf(optarg, "%d", &subeventid) ) exitmsg();
+	if ( rangeParser ( optarg, packetSelection) ) exitmsg();
+	subeventid=1;  // yes, select
+	break;
+
+      case 't':
+	if (*optarg == 'S' || *optarg == 's' )
+	  {
+	    type_is_a_range =1;
+	    eventtypemin=8;
+	    eventtypemax=20;
+	  }
+	else if (*optarg == 'A' || *optarg == 'a')
+	  {
+	    type_is_a_range =1;
+	    eventtypemin=1;
+	    eventtypemax=20;
+	  }
+	else if (*optarg == 'D' || *optarg == 'd')
+	  {
+	    type_is_a_range =1;
+	    eventtypemin=1;
+	    eventtypemax=7;
+	  }
+	else
+	  {  
+	    if ( !sscanf(optarg, "%d", &eventtype) ) exitmsg();
+	    type_is_a_range =0;
+	  }
+	break;
+
+      case 'i':
+	identify = 1;
+	break;
+
+      case 'g':
+	generic = 1;
+	break;
+
+      case 'T':
+	ittype = TESTEVENTITERATOR;
+	break;
+
+      case 'f':
+	ittype = FILEEVENTITERATOR;
+	break;
+
+      case 'r':
+	ittype = RCDAQEVENTITERATOR;
+	break;
+
+      case 'O':
+	ittype = ONCSEVENTITERATOR;
+	break;
+
+      case 'o':
+	dumpstyle = EVT_OCTAL;
+	break;
+
+      case 'd':
+	dumpstyle = EVT_DECIMAL;
+	break;
+
+      case 's':
+	dumpstyle = EVT_RAW;
+	break;
+
+      case 'x':
+	dumpstyle = EVT_RAW_WH;
+	break;
+
+      case 'v':   // verbose
+	verbose++;
+	break;
+
+      case 'h':
+	exithelp();
+	break;
+      }
+
+  
+
+  if ( eventnumber && countnumber) evtcountexitmsg();
+
+  signal(SIGKILL, sig_handler);
+  signal(SIGTERM, sig_handler);
+  signal(SIGINT,  sig_handler);
+
+  // see if we can open the file
+  it = 0;
+  status = 0;
+  
+  switch (ittype)
+    {
+    case RCDAQEVENTITERATOR:
+      if ( optind+1>argc) 
+	{
+	  std::string host = "localhost";
+    
+	  if ( getenv("RCDAQHOST")  )
+	    {
+	      host = getenv("RCDAQHOST");
+	    }
+	  
+	  it = new rcdaqEventiterator(host.c_str(), status);
+
+	}
+      else
+	{
+	  it = new rcdaqEventiterator(argv[optind], status);
+	}
+      break;
+
+    case  TESTEVENTITERATOR:
+      it = new testEventiterator();
+      status =0;
+      break;
+
+    case  FILEEVENTITERATOR:
+      if ( optind+1>argc) exitmsg();
+      it = new fileEventiterator(argv[optind], status);
+      break;
+     
+    case  ONCSEVENTITERATOR:
+      if ( optind+1>argc) exitmsg();
+      it = new oncsEventiterator(argv[optind], status);
+      break;
+
+      status = 1;
+      break;
+      
+    default:
+      exitmsg();
+      break;
+    }
+
+  if (status)
+    {
+      delete it;
+      it = 0;
+      COUT << "Could not open input stream" << std::endl;
+      exit(1);
+    }
+
+  // set the verbosity of the iterator
+  it->setVerbosity(verbose);
+
+  // ok. now go through the events
+  Event *evt;
+  Packet *s;
+  int i;
+
+  evt = it->getNextEvent();
+
+  // first check if our requested event number is already past:
+
+  //  if ( eventnumber && evt->getEvtSequence() > eventnumber)
+  // {
+  //   COUT << "requested Event number " << eventnumber<< 
+  //	" but found " <<  evt->getEvtSequence() << " already" << std::endl;
+  //   delete evt;
+  //   evt = 0;
+  // }
+
+  int take_this;
+  int count = 0;
+  int accepted_count = 0;
+
+  while (evt)    // as long as there is a next event...
+    {
+      take_this = 1;
+      count++;
+
+      if ( eventnumber )
+	{
+	  if ( evt->getEvtSequence() == eventnumber)
+	    eventnumber = 0;
+	  else
+	    take_this = 0;
+	}
+
+
+      if ( countnumber && count < countnumber)
+	take_this = 0;
+
+      if ( type_is_a_range)
+	{
+	  if ( (evt->getEvtType() < eventtypemin) || 
+	       (evt->getEvtType() > eventtypemax) 
+	       ) take_this = 0;
+	}
+      else
+	{
+	  if (evt->getEvtType() != eventtype) take_this = 0;
+	}
+	
+      if (take_this)
+	{
+	  if (identify) evt->identify();
+
+	  if ( subeventid)
+	    {
+	      std::vector<int>::const_iterator vit;
+	      for (vit= packetSelection.begin(); vit!= packetSelection.end(); ++vit)
+		{
+		  if ( (s = evt->getPacket(*vit)) )  // get the subevent
+		    {
+		      if (generic) s->gdump(dumpstyle);
+		      else s->dump();
+		      delete s;
+		    }
+		}
+	    }
+	  else
+	    {
+	      Packet *p[10000];
+	      int nw = evt->getPacketList(p, 10000);
+	      for (i=0; i<nw; i++)
+		{
+		  if (generic) p[i]->gdump(dumpstyle);
+		  else p[i]->dump();
+		  delete p[i];
+		}
+	    }
+	  
+		
+	  delete evt;
+	  if ( repeatcount==0 ||  ++accepted_count < repeatcount) evt = it->getNextEvent();
+	  else	evt = 0;
+
+	}
+      else
+	{
+	  delete evt;
+	  evt = it->getNextEvent(); // try to get the next event
+	}
+    }
+	
+  delete it;
+  it = 0;
+  return 0;
+}
+

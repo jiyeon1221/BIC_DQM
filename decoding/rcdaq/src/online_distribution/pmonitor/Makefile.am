@@ -1,0 +1,85 @@
+AUTOMAKE_OPTIONS = foreign
+
+PACKAGE = pmonitor
+
+# headers go only under $(includedir)/pmonitor/ (pkgincludedir), used as
+# #include <pmonitor/pmonitor.h> - previously they were also installed flat
+# into $(includedir) via include_HEADERS
+pkginclude_HEADERS = \
+  pmonitor.h \
+  pmonstate.h \
+  pMutex.h
+
+
+LINKFILE = pmonitorLinkDef.h
+
+noinst_HEADERS = $(LINKFILE)
+
+#BUILT_SOURCES = pmonitor_Dict.C
+
+#ROOTCINT =  $(ROOTSYS)/bin/rootcint 
+ROOTCINT =  rootcint 
+
+AM_CPPFLAGS =  -I$(includedir) -isystem@ROOTINC@ @ROOTCFLAGS@
+
+lib_LTLIBRARIES = libpmonitor.la
+
+LDFLAGS = -Wl,--no-as-needed 
+
+# NOTE: previously gated "if ! MAKEROOT6" (ROOT5 only), same stale-gap
+# pattern as eventlibraries/Makefile.am - see that file's fix for the
+# full explanation. Also, configure.ac's MAKEROOT6 test had a broken
+# awk syntax ($1>=6. is a syntax error) that made the test always fail
+# and MAKEROOT6 always evaluate false, which accidentally took this
+# branch anyway on ROOT6 - fixed separately in configure.ac, so this
+# guard is no longer needed for the right reason either.
+ROOT5_DICTS = \
+  pmonitor_Dict.C
+
+libpmonitor_la_SOURCES = \
+  $(ROOT5_DICTS) \
+  pmonitor.cc \
+  pmonitor.h \
+  pmonstate.h \
+  pMutex.cc
+
+
+if FROG
+
+libpmonitor_la_LIBADD = \
+  -L$(libdir) \
+  -L$(ONLINE_MAIN)/lib \
+  -lEvent -lNoRootEvent -lmessage \
+  $(ROOTLIBS) -lThread -lpthread \
+  -L$(OFFLINE_MAIN)/lib 
+
+else
+
+
+libpmonitor_la_LIBADD = \
+  -L$(libdir) \
+  -L$(ONLINE_MAIN)/lib \
+  -lEvent -lNoRootEvent -lmessage \
+  $(ROOTLIBS) -lThread -lpthread 
+
+endif
+
+pcmdir = $(libdir)
+nobase_dist_pcm_DATA = \
+   pmonitor_Dict_rdict.pcm
+
+pmonitor_Dict.C: pmonitor.h pmonstate.h  $(LINKFILE)
+	$(ROOTCINT) -f $@ @CINTDEFS@ -c $(DEFAULT_INCLUDES) -I$(includedir) $^
+
+bin_SCRIPTS = writePmonProject.sh writePmonProject.pl
+
+
+# get the dependency for the pcm files
+%_Dict_rdict.pcm: %_Dict.C ;
+
+
+# clean cache dir on Solaris 5.8
+clean-local:
+	rm -rf SunWS_cache
+	rm -f *Dict* $(BUILT_SOURCES) *.pcm
+
